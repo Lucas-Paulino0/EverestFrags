@@ -126,7 +126,7 @@ player_match_stats                          ranking_config
   player_id  (FK → players)                   weight_combat   (ex: 0.50)
   match_id   (FK → matches)                   weight_duel     (ex: 0.30)
   UNIQUE(player_id, match_id)                 weight_utility  (ex: 0.20)
-  -- 15 métricas --                           updated_at
+  -- métricas base --                         updated_at
   kills, deaths, assists                      updated_by (FK → players)
   damage_total, adr, adr_difference
   hltv_rating, kast_percent         ◄── matches
@@ -134,8 +134,11 @@ player_match_stats                          ranking_config
   time_to_kill_ms                       scope_url  (link scope.gg)
   flash_assists, grenade_damage         played_at  (date)
   he_enemies_hit, fire_enemies_hit      map_name
-                                        notes
-                                        created_at
+  -- métricas situacionais (HLTV 3.0) --    notes
+  disadvantage_kills                    created_at
+  advantage_kills
+  trade_denials
+  eco_kills
 ```
 
 ### Decisões de design do banco
@@ -179,9 +182,18 @@ FRONTEND_URL=http://localhost:5173 # URL do frontend (backend redireciona o play
 
 ## Sistema de Score e Ranking
 
+### Filosofia — inspirado na evolução do HLTV Rating
+
+O sistema foi desenhado acompanhando a evolução histórica do HLTV:
+- **Rating 1.0 (2010):** só K/D + multikills
+- **Rating 2.0 (2017):** adicionou ADR, KAST, Impact
+- **Rating 2.1 (out/2024):** penalizou saving, igualou pesos das sub-ratings, ajustou para MR12
+- **Rating 3.0 (ago/2025):** adicionou Round Swing (valor contextual de cada kill) e eco-adjustment
+
+Nossa fórmula incorpora as mesmas ideias: kills em situação difícil valem mais, kills fáceis valem menos.
+
 ### Como funciona (resumo)
 
-Cada partida registrada contribui para o score de cada jogador que participou.
 O score final é calculado **comparando todos os jogadores entre si** — não é absoluto.
 Um jogador com 30 kills num grupo fraco pode ter score menor que um com 20 kills
 num grupo forte, dependendo de como os outros foram.
@@ -190,16 +202,14 @@ num grupo forte, dependendo de como os outros foram.
 
 Antes de calcular o score, as métricas são agregadas ao longo de TODAS as partidas:
 
-| Métricas somadas | Métricas calculadas por média |
-|-----------------|-------------------------------|
+| Métricas somadas (volume) | Métricas por média (consistência) |
+|---------------------------|-----------------------------------|
 | kills, deaths, assists | adr, adr_difference |
 | damage_total | hltv_rating, kast_percent |
-| opening_kills, trade_kills | time_to_kill_ms |
+| opening_kills, trade_kills, trade_denials | time_to_kill_ms |
 | flash_assists, grenade_damage | |
 | he_enemies_hit, fire_enemies_hit | |
-
-Somas representam volume (mais partidas = mais contribuição).
-Médias representam consistência (independe de quantas partidas jogou).
+| disadvantage_kills, advantage_kills, eco_kills | |
 
 ### Passo 2 — Normalização min-max (0 a 100)
 
@@ -219,29 +229,105 @@ score_invertido = (max_do_grupo - valor_jogador) / (max_do_grupo - min_do_grupo)
 
 Se todos os jogadores têm o mesmo valor numa métrica → score = 50 para todos (empate perfeito).
 
-### Passo 3 — Score por categoria
+### Passo 3 — Score por categoria com ajustes contextuais
 
-As métricas normalizadas são agrupadas em 3 categorias:
+**Score Combate** — média ponderada de:
 
-| Categoria | Métricas incluídas |
-|-----------|-------------------|
-| **Combate** | kills, deaths, assists, damage_total, adr, adr_difference, hltv_rating, kast_percent, grenade_damage |
-| **Duelos** | opening_kills, trade_kills, time_to_kill_ms |
-| **Utility** | flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit |
+| Métrica | Peso/Ajuste |
+|---------|-------------|
+| kills (normalizado) | base |
+| deaths (invertido) | base |
+| assists | base |
+| damage_total | base |
+| adr | base |
+| adr_difference | base |
+| hltv_rating | resumo externo |
+| kast_percent | consistência |
+| grenade_damage | utility de dano |
+| **eco_kills** | **valem 0.5× — kill fácil penalizada** |
+| **disadvantage_kills** | **valem 1.3× — kill difícil bonificada** |
+| **advantage_kills** | **valem 0.8× — kill com vantagem penalizada** |
 
-O score de cada categoria é a **média** dos scores normalizados das métricas dela.
+> Esses três multiplicadores são aplicados ANTES da normalização, ajustando o valor bruto
+> de kills de acordo com o contexto da rodada — mesma lógica do HLTV 3.0 Round Swing.
+
+**Score Duelos** — média de:
+
+| Métrica | Descrição |
+|---------|-----------|
+| opening_kills | primeiro kill do round — abre vantagem numérica |
+| trade_kills | vingança em até 5s após morte de companheiro |
+| trade_denials | impediu que inimigo tradasse kill de companheiro em 5s |
+| time_to_kill_ms (invertido) | mais rápido = mais decisivo no duelo |
+
+**Score Utility** — média de:
+
+| Métrica | Descrição |
+|---------|-----------|
+| flash_assists | cegou inimigo que foi morto em seguida |
+| grenade_damage | dano de HE |
+| he_enemies_hit | cobertura de área |
+| fire_enemies_hit | molotov/incendiária |
 
 ### Passo 4 — Score final ponderado
 
 ```
-score_final = (score_combate × peso_combate)
-            + (score_duelo   × peso_duelo)
-            + (score_utility × peso_utility)
+score_final = (score_combate  × peso_combate)   # default 0.50
+            + (score_duelo    × peso_duelo)      # default 0.30
+            + (score_utility  × peso_utility)    # default 0.20
 ```
 
 Os pesos são lidos da tabela `ranking_config` a cada cálculo — nunca hardcodados.
 O admin pode ajustá-los em tempo real pelo modal de configuração no Dashboard.
 A validação garante que a soma dos 3 pesos sempre seja exatamente 1.0 (100%).
+
+---
+
+## Métricas Situacionais — Como Calcular do .dem
+
+Estas 4 métricas são calculadas em `demo_parser.py` durante o parsing do arquivo `.dem`:
+
+### disadvantage_kills — kill em desvantagem numérica
+
+```python
+# A cada kill, verificar contagem de jogadores vivos no momento
+# Se time do atirador tem MENOS jogadores vivos que o inimigo → disadvantage kill
+alive_attackers = count_alive(team=attacker_team, tick=kill_tick)
+alive_victims   = count_alive(team=victim_team,   tick=kill_tick)
+if alive_attackers < alive_victims:
+    disadvantage_kills += 1
+```
+
+### advantage_kills — kill em vantagem numérica
+
+```python
+# Inverso: time do atirador tem MAIS jogadores vivos
+if alive_attackers > alive_victims:
+    advantage_kills += 1
+# Obs: kills em situação 1v1 (igual) não são nem advantage nem disadvantage
+```
+
+### eco_kills — kill contra inimigo mal equipado
+
+```python
+# Classificar o equipamento da vítima no momento da kill
+# Se valor de equipamento < ECO_THRESHOLD (ex: < $1000 de valor de arma) → eco kill
+victim_equipment_value = get_equipment_value(victim, tick=kill_tick)
+if victim_equipment_value < ECO_THRESHOLD:
+    eco_kills += 1
+```
+
+### trade_denials — impediu troca adversária
+
+```python
+# Após uma kill de um companheiro: se o atirador eliminar o attacker inimigo
+# em até 5 segundos, ele negou a troca do adversário
+WINDOW_TICKS = 5 * 64  # 5 segundos a 64 tick
+for teammate_kill in kills_by_team:
+    enemy_attacker = teammate_kill.attacker
+    if player_killed(enemy_attacker, within=WINDOW_TICKS, after=teammate_kill.tick):
+        trade_denials += 1
+```
 
 ---
 
