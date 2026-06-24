@@ -339,51 +339,48 @@ for teammate_kill in kills_by_team:
 
 ---
 
-## Sistema de Sorteio (Snake Draft)
+## Sistema de Sorteio (Aleatório Equilibrado)
 
-### Por que Snake Draft?
+### Objetivo
 
-O sorteio simples (sortear aleatoriamente) cria times desequilibrados com frequência.
-Forças-brutas (testar todas as combinações) são lentas para 15 jogadores.
+Times **diferentes** a cada sessão, sempre dentro de uma margem de equilíbrio de 40-60%.
+O mesmo grupo de 10 jogadores pode produzir dezenas de divisões válidas — o sistema
+escolhe uma aleatoriamente entre elas.
 
-Snake Draft é o meio-termo: distribui os melhores jogadores de forma intercalada,
-garantindo que nenhum time acumule todos os tops. É o mesmo método usado em ligas
-de fantasy esports e drafts da NBA.
-
-### Como o algoritmo funciona
+### Como o algoritmo funciona (`sort_service.py`)
 
 **Entrada:** lista de player_ids selecionados + número de times (2 ou 3)
 
 **Passo 1 — Score dos jogadores**
 
-O serviço consulta o ranking calculado (`ranking_service.calculate_ranking()`)
-e filtra apenas os jogadores selecionados. Jogadores sem partidas têm score 0.
+Consulta o ranking calculado (`ranking_service.get_ranking()`).
+Jogadores sem partidas registradas têm score 0 e ficam no fim da lista.
 
-**Passo 2 — Ordenar por score (maior primeiro)**
-
-```
-Ex com 6 jogadores, 2 times:
-Ordem: GodBR(92) > Dr0p(85) > clutch(78) > awper(71) > naab(55) > bait(40)
-```
-
-**Passo 3 — Distribuição em serpentina**
+**Passo 2 — Gera todas as combinações possíveis**
 
 ```
-Rodada 0 (esquerda → direita):  T1 ← GodBR(92),  T2 ← Dr0p(85)
-Rodada 1 (direita → esquerda):  T2 ← clutch(78), T1 ← awper(71)
-Rodada 2 (esquerda → direita):  T1 ← naab(55),   T2 ← bait(40)
-
-Resultado:
-  Time 1: GodBR(92) + awper(71) + naab(55) → total 218
-  Time 2: Dr0p(85)  + clutch(78) + bait(40) → total 203
-  Diferença: 15 pontos (muito menor que um draft aleatório)
+2 times, 10 jogadores → C(9,4) = 126 combinações únicas
+2 times, 18 jogadores → C(17,8) = 24.310 combinações únicas
+3 times, 9  jogadores → C(9,3)×C(6,3) = 1.680 combinações
+3 times, 15 jogadores → amostragem de 6.000 tentativas aleatórias
 ```
 
-Para 3 times a lógica é análoga — a serpentina inverte a direção a cada rodada.
+Para N grande (> 15.000 combinações), usa amostragem aleatória em vez de enumeração.
 
-**Passo 4 — Retorno**
+**Passo 3 — Filtra por margem de equilíbrio**
 
-O endpoint `/api/sort-teams` retorna `SortTeamsResponse`:
+```
+2 times: diff / total_score <= 0.20  →  garante equilíbrio 40/60
+3 times: diff / total_score <= 0.15  →  garante ~±8% por time
+```
+
+**Passo 4 — Escolha aleatória**
+
+Se houver combinações válidas → escolhe uma aleatoriamente (`random_balanced`).
+Se nenhuma couber na margem (grupo muito desequilibrado) → usa a de menor diferença (`best_effort`).
+
+**Retorno do endpoint `/api/sort-teams`:**
+
 ```json
 {
   "teams": [
@@ -391,16 +388,12 @@ O endpoint `/api/sort-teams` retorna `SortTeamsResponse`:
     { "team_number": 2, "players": [...], "total_score": 203, "avg_score": 67.7 }
   ],
   "diff_score": 15.0,
-  "algorithm": "snake_draft"
+  "algorithm": "random_balanced"
 }
 ```
 
-`diff_score` é a diferença de score total entre o time mais forte e o mais fraco.
-Quanto menor, mais equilibrado o sorteio.
-
 **Importante:** o sorteio é **stateless** — não salva nada no banco.
-Cada chamada ao endpoint é independente. O admin sorteia, vê o resultado na tela,
-e divide os times na hora. Se quiser ressortear, chama de novo.
+Cada chamada é independente. Clicar SORTEAR novamente gera uma divisão diferente.
 
 ---
 
