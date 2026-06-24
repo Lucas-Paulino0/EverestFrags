@@ -58,14 +58,17 @@ EverestFrags/
 │       │   ├── match_service.py     ← CRUD matches + stats (transação única com flush)
 │       │   ├── ranking_service.py   ← Fórmula min-max normalização + pesos do banco
 │       │   ├── sort_service.py      ← Algoritmo Snake Draft em memória
-│       │   └── steam_service.py     ← OpenID build_redirect, verify_response, get_steam_profile
+│       │   ├── steam_service.py     ← OpenID build_redirect, verify_response, get_steam_profile
+│       │   └── demo_service.py      ← Parser .dem: 4 eventos, sem parse_ticks, dicts leves
 │       └── routers/
 │           ├── auth.py              ← POST /login, GET /me, POST /change-password, POST /logout
 │           ├── steam_auth.py        ← GET /steam, GET /steam/callback
 │           ├── players.py           ← GET/POST /players, GET/PATCH /players/{id}
 │           ├── matches.py           ← GET/POST /matches, GET/DELETE /matches/{id}
 │           ├── ranking.py           ← GET /ranking (público), GET/PUT /ranking/config (admin)
-│           └── sort.py              ← GET /sort-teams?players=1,2,3&teams=2
+│           ├── sort.py              ← GET /sort-teams?players=1,2,3&teams=2
+│           ├── chat.py              ← WS /chat/ws?token=JWT (broadcast em memória, sem persistência)
+│           └── demo.py              ← POST /demo/parse (upload .dem, admin only, max 750 MB)
 │
 ├── frontend/
 │   ├── index.html                   ← HTML base com Google Fonts (Barlow Condensed, Inter, JetBrains Mono)
@@ -81,6 +84,7 @@ EverestFrags/
 │       ├── context/AuthContext.tsx  ← Estado global: login(), loginWithToken(), logout()
 │       ├── components/
 │       │   ├── ProtectedRoute.tsx   ← ProtectedRoute + AdminRoute para react-router
+│       │   ├── Navbar.tsx           ← Barra de navegação (Dashboard/Partidas/Sorteio/Chat/Perfil)
 │       │   ├── RadarChart.tsx       ← SVG hexagonal puro, 6 eixos, sem biblioteca
 │       │   ├── CategoryBar.tsx      ← Barra de progresso por categoria
 │       │   ├── PodiumCard.tsx       ← Card top-3 (radar + barras + pills)
@@ -91,8 +95,12 @@ EverestFrags/
 │           ├── SteamCallback.tsx    ← Processa redirect do Steam (/auth/callback)
 │           ├── Dashboard.tsx        ← Ranking: pódio + grade + lista compacta
 │           ├── Matches.tsx          ← Histórico paginado + delete (admin)
-│           ├── AddMatch.tsx         ← Formulário nova partida (tabela 15 métricas)
-│           └── Sort.tsx             ← Sorteio: checkboxes + 2/3 times + resultado
+│           ├── AddMatch.tsx         ← Formulário nova partida + pré-fill via demo parser
+│           ├── Sort.tsx             ← Sorteio: checkboxes + 2/3 times + resultado
+│           ├── Profile.tsx          ← Perfil pessoal: ranking + stats + alterar senha
+│           ├── Admin.tsx            ← Gestão: criar/editar players (com Steam ID), deletar partidas
+│           ├── Chat.tsx             ← Chat em tempo real via WebSocket
+│           └── DemoUpload.tsx       ← Upload de .dem → stats prontas para AddMatch
 │
 └── Everest Frags rebrand/           ← Referências de design (NÃO é código de produção)
     ├── EverestFrags Dashboard.dc.html ← Protótipo Declutter (referência visual)
@@ -535,23 +543,39 @@ players / player123
 
 ---
 
+## Rotas do frontend (App.tsx)
+
+| Rota | Acesso | Página |
+|------|--------|--------|
+| `/login` | público | Login (nickname+senha ou Steam) |
+| `/auth/callback` | público | SteamCallback (processa redirect OpenID) |
+| `/` | público | Dashboard (ranking completo) |
+| `/matches` | público | Histórico de partidas paginado |
+| `/matches/new` | admin | Formulário de nova partida |
+| `/sort` | público | Sorteio de times (Snake Draft) |
+| `/profile` | autenticado | Perfil pessoal + alterar senha |
+| `/admin` | admin | Gestão de players e partidas |
+| `/demo` | admin | Upload de .dem → pré-fill AddMatch |
+| `/chat` | público | Chat em tempo real (WebSocket) |
+| `/*` | — | Redireciona para `/` |
+
+---
+
 ## O que falta implementar
 
 ### Crítico (bloqueia uso real)
 - [ ] Deploy no Render + Vercel — projeto ainda não está no ar
-- [ ] Testar endpoints com Insomnia após deploy
+- [ ] Testar endpoints após deploy (especialmente WebSocket e demo parser)
 - [ ] Trocar senha do admin após primeiro login
-- [ ] **Navegação entre páginas** — não existe barra de navegação. O usuário não consegue ir de
-      `/` para `/matches` ou `/sort` sem digitar a URL. Falta criar um `Navbar.tsx` com links
-      para Dashboard, Partidas e Sorteio.
+- [ ] Verificar se `demoparser2` (lib Rust) instala corretamente no ambiente Linux do Render
 
 ### Importantes (melhoram a experiência)
-- [ ] Página `/profile` — stats pessoais do player logado + posição no ranking + histórico
-- [ ] Página `/admin` — painel do gestor: criar/editar players, promover viewer para admin
-- [ ] Busca de perfil Steam ao cadastrar player manualmente (auto-preencher nickname e avatar)
+- [ ] Chat sem persistência — mensagens somem se o servidor reiniciar; considerar Redis pub/sub ou tabela no banco
+- [ ] Busca de perfil Steam ao cadastrar player manualmente no Admin (hoje precisa copiar o ID na mão)
+- [ ] `kast_percent` fixado em 50 no `demo_service.py` — cálculo real exige `parse_ticks()` que carrega todo o demo em memória
 
 ### Futuro
-- [ ] Parser de `.dem` — upload de demo CS2, extrai stats automaticamente com `awpy`/`demoparser2`
+- [ ] Métricas situacionais no demo parser — `disadvantage_kills`, `advantage_kills`, `eco_kills` não são calculadas ainda (precisam de `parse_ticks`)
 - [ ] Alembic — migrações incrementais quando o schema precisar evoluir
 - [ ] Integração direta com scope.gg (scraping ou API oficial se existir)
 
