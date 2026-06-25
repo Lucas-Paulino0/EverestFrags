@@ -2,16 +2,19 @@
  * Página /matches/new — formulário para adicionar partida
  *
  * Tabela de entrada: uma linha por jogador, colunas = todas as métricas.
- * O admin seleciona quais jogadores participaram via checkboxes.
- * Validação client-side antes de enviar.
+ * O admin seleciona quais jogadores participaram via checkboxes, ou então
+ * arrasta um .dem do CS2 — o backend extrai as métricas e casa cada jogador
+ * do demo com sua conta via steam_id (criando a conta automaticamente se
+ * for a primeira vez), preenchendo a tabela abaixo na mesma tela.
  * Ao salvar: POST /api/matches → redireciona para /matches.
  */
 
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { playersApi, matchesApi, type PlayerResponse, type PlayerStatsCreate } from "../api/client";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { playersApi, matchesApi, demoApi, type PlayerResponse, type PlayerStatsCreate, type DemoPlayerStat, type DemoCreatedPlayer } from "../api/client";
 
 const MAPS = ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo"];
+const MAX_DEMO_MB = 750;
 
 type StatRow = PlayerStatsCreate & { selected: boolean };
 
@@ -33,10 +36,51 @@ const STAT_COLS: { key: keyof PlayerStatsCreate; label: string; min: number; max
   { key: "fire_enemies_hit", label: "FIRE HIT", min: 0, max: 20, step: 1 },
 ];
 
+function emptyRow(playerId: number, selected = false): StatRow {
+  return {
+    player_id: playerId, selected,
+    kills: 0, deaths: 0, assists: 0, damage_total: 0,
+    adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
+    opening_kills: 0, trade_kills: 0, time_to_kill_ms: 0,
+    flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0,
+  };
+}
+
+function buildRows(ps: PlayerResponse[], demoPlayers?: DemoPlayerStat[]): StatRow[] {
+  if (!demoPlayers) return ps.map(p => emptyRow(p.id));
+
+  const demoByPlayerId = new Map<number, DemoPlayerStat>();
+  for (const dp of demoPlayers) {
+    if (dp.player_id != null) demoByPlayerId.set(dp.player_id, dp);
+  }
+
+  return ps.map(p => {
+    const match = demoByPlayerId.get(p.id);
+    if (!match) return emptyRow(p.id);
+    return {
+      player_id: p.id, selected: true,
+      kills: match.kills ?? 0,
+      deaths: match.deaths ?? 0,
+      assists: match.assists ?? 0,
+      damage_total: match.damage_total ?? 0,
+      adr: match.adr ?? 0,
+      adr_difference: match.adr_difference ?? 0,
+      hltv_rating: match.hltv_rating ?? 0,
+      kast_percent: match.kast_percent ?? 0,
+      opening_kills: match.opening_kills ?? 0,
+      trade_kills: match.trade_kills ?? 0,
+      time_to_kill_ms: match.time_to_kill_ms ?? 0,
+      flash_assists: match.flash_assists ?? 0,
+      grenade_damage: match.grenade_damage ?? 0,
+      he_enemies_hit: match.he_enemies_hit ?? 0,
+      fire_enemies_hit: match.fire_enemies_hit ?? 0,
+    };
+  });
+}
+
 export function AddMatch() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const fromDemo = searchParams.get("from") === "demo";
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
   const [rows, setRows] = useState<StatRow[]>([]);
@@ -46,81 +90,63 @@ export function AddMatch() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Upload de .dem
+  const [dragging, setDragging] = useState(false);
+  const [demoFile, setDemoFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [demoError, setDemoError] = useState("");
+  const [demoCreated, setDemoCreated] = useState<DemoCreatedPlayer[]>([]);
   const [demoUnmatched, setDemoUnmatched] = useState<string[]>([]);
 
   useEffect(() => {
     playersApi.list().then(ps => {
       setPlayers(ps);
-
-      // Tenta pré-preencher com dados do demo se vier de /demo
-      if (fromDemo) {
-        try {
-          const raw = sessionStorage.getItem("demo_result");
-          if (raw) {
-            const demo = JSON.parse(raw);
-            if (demo.map_name) setMapName(demo.map_name);
-            sessionStorage.removeItem("demo_result");
-
-            const unmatched: string[] = [];
-            const demoByNick: Record<string, any> = {};
-            for (const dp of (demo.players ?? [])) {
-              demoByNick[dp.nickname.toLowerCase()] = dp;
-            }
-
-            const newRows: StatRow[] = ps.map(p => {
-              const match = demoByNick[p.nickname.toLowerCase()];
-              if (match) {
-                return {
-                  player_id: p.id, selected: true,
-                  kills: match.kills ?? 0,
-                  deaths: match.deaths ?? 0,
-                  assists: match.assists ?? 0,
-                  damage_total: match.damage_total ?? 0,
-                  adr: match.adr ?? 0,
-                  adr_difference: match.adr_difference ?? 0,
-                  hltv_rating: match.hltv_rating ?? 0,
-                  kast_percent: match.kast_percent ?? 0,
-                  opening_kills: match.opening_kills ?? 0,
-                  trade_kills: match.trade_kills ?? 0,
-                  time_to_kill_ms: match.time_to_kill_ms ?? 0,
-                  flash_assists: match.flash_assists ?? 0,
-                  grenade_damage: match.grenade_damage ?? 0,
-                  he_enemies_hit: match.he_enemies_hit ?? 0,
-                  fire_enemies_hit: match.fire_enemies_hit ?? 0,
-                };
-              }
-              return {
-                player_id: p.id, selected: false,
-                kills: 0, deaths: 0, assists: 0, damage_total: 0,
-                adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
-                opening_kills: 0, trade_kills: 0, time_to_kill_ms: 0,
-                flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0,
-              };
-            });
-
-            // detecta nicks do demo que não casaram com nenhum player
-            const dbNicks = new Set(ps.map(p => p.nickname.toLowerCase()));
-            for (const nick of Object.keys(demoByNick)) {
-              if (!dbNicks.has(nick)) unmatched.push(nick);
-            }
-
-            setRows(newRows);
-            setDemoUnmatched(unmatched);
-            return;
-          }
-        } catch {}
-      }
-
-      setRows(ps.map(p => ({
-        player_id: p.id,
-        selected: false,
-        kills: 0, deaths: 0, assists: 0, damage_total: 0,
-        adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
-        opening_kills: 0, trade_kills: 0, time_to_kill_ms: 0,
-        flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0,
-      })));
+      setRows(buildRows(ps));
     });
   }, []);
+
+  function handleDemoFile(f: File) {
+    if (!f.name.toLowerCase().endsWith(".dem")) {
+      setDemoError("Apenas arquivos .dem do CS2 são aceitos.");
+      return;
+    }
+    if (f.size > MAX_DEMO_MB * 1024 * 1024) {
+      setDemoError(`Arquivo muito grande (${(f.size / 1024 / 1024).toFixed(0)}MB). Limite: ${MAX_DEMO_MB}MB`);
+      return;
+    }
+    setDemoFile(f);
+    setDemoError("");
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f) handleDemoFile(f);
+  }
+
+  async function uploadDemo() {
+    if (!demoFile) return;
+    setParsing(true);
+    setDemoError("");
+    try {
+      const result = await demoApi.parse(demoFile);
+
+      // Refaz a lista de players — o parse pode ter criado contas novas via steam_id
+      const ps = await playersApi.list();
+      setPlayers(ps);
+      setRows(buildRows(ps, result.players));
+
+      if (result.map_name) setMapName(result.map_name);
+      setDemoCreated(result.created_players);
+      setDemoUnmatched(result.players.filter(p => p.player_id == null).map(p => p.nickname));
+      setDemoFile(null);
+    } catch (e: any) {
+      setDemoError(e.message ?? "Erro ao processar demo");
+    } finally {
+      setParsing(false);
+    }
+  }
 
   function toggleRow(idx: number) {
     setRows(r => r.map((row, i) => i === idx ? { ...row, selected: !row.selected } : row));
@@ -154,6 +180,7 @@ export function AddMatch() {
   }
 
   const selectedCount = rows.filter(r => r.selected).length;
+  const demoSz = demoFile ? (demoFile.size / (1024 * 1024)).toFixed(1) : null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#080808", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", padding: "32px 24px" }}>
@@ -190,15 +217,49 @@ export function AddMatch() {
           </div>
         </div>
 
-        {/* Banner demo */}
-        {fromDemo && (
-          <div style={{ background: "rgba(14,116,144,0.07)", border: "1px solid rgba(14,116,144,0.25)", padding: "10px 16px", marginBottom: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#22d3ee" }}>
-            // dados pré-preenchidos a partir do demo
-            {demoUnmatched.length > 0 && (
-              <span style={{ color: "#e0a82e", marginLeft: 16 }}>
-                ⚠ nicks não encontrados no sistema: {demoUnmatched.join(", ")}
-              </span>
-            )}
+        {/* Upload de .dem */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          style={{
+            border: `1px dashed ${dragging ? "#0e7490" : "#1f1f1f"}`,
+            background: dragging ? "rgba(14,116,144,0.06)" : "#0e0e0e",
+            padding: "16px 20px", marginBottom: 16, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+          }}
+        >
+          <input ref={inputRef} type="file" accept=".dem" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleDemoFile(f); }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: demoFile ? "#22d3ee" : "#5a5a5a" }}>
+            {demoFile ? `${demoFile.name} · ${demoSz}MB` : "// arraste um .dem do CS2 aqui (ou clique) para extrair e preencher automaticamente · limite 750MB"}
+          </span>
+          {demoFile && (
+            <button
+              onClick={e => { e.stopPropagation(); uploadDemo(); }}
+              disabled={parsing}
+              style={{ background: "#0e7490", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "1.5px", padding: "9px 20px", cursor: parsing ? "wait" : "pointer" }}
+            >
+              {parsing ? "PROCESSANDO..." : "EXTRAIR DO DEMO"}
+            </button>
+          )}
+        </div>
+
+        {demoError && (
+          <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)", padding: "10px 16px", marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#f87171" }}>
+            // erro: {demoError}
+          </div>
+        )}
+
+        {demoCreated.length > 0 && (
+          <div style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.2)", padding: "10px 16px", marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#22d3ee" }}>
+            // {demoCreated.length} conta(s) nova(s) criada(s) automaticamente: {demoCreated.map(p => p.nickname).join(", ")}
+          </div>
+        )}
+
+        {demoUnmatched.length > 0 && (
+          <div style={{ background: "rgba(224,168,46,0.05)", border: "1px solid rgba(224,168,46,0.2)", padding: "10px 16px", marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#e0a82e" }}>
+            ⚠ sem steam_id no demo, não foi possível criar/casar conta: {demoUnmatched.join(", ")}
           </div>
         )}
 

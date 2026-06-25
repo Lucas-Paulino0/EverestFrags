@@ -59,14 +59,14 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
         try:
             kills_df = parser.parse_event(
                 "player_death",
-                player=["team_num"],
+                player=["team_num", "steamid"],
                 other=["total_rounds_played"],
             )
         except Exception as e:
             raise RuntimeError(f"Falha ao ler kills do demo: {e}")
 
         try:
-            hurt_df = parser.parse_event("player_hurt", player=["team_num"])
+            hurt_df = parser.parse_event("player_hurt", player=["team_num", "steamid"])
         except Exception as e:
             errors.append(f"Eventos de dano indisponíveis: {e}")
 
@@ -76,7 +76,7 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             errors.append(f"Eventos de round indisponíveis: {e}")
 
         try:
-            flash_df = parser.parse_event("player_blind", player=["team_num"])
+            flash_df = parser.parse_event("player_blind", player=["team_num", "steamid"])
         except Exception as e:
             errors.append(f"Eventos de flash indisponíveis: {e}")
 
@@ -92,14 +92,32 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── 4. Normaliza kills para lista de dicts ────────────────────────────────
+    # Jogadores são identificados por steamid (estável) — o nick é só para exibição,
+    # já que pode mudar entre partidas ou colidir entre contas diferentes.
+    nicknames: dict[str, str] = {}  # steamid -> último nick visto
+
+    def _key(steamid: str, name: str) -> str:
+        """Usa steamid como identidade; sem steamid (bot/anônimo), cai pro nome."""
+        if steamid:
+            if name:
+                nicknames[steamid] = name
+            return steamid
+        return name
+
     kills: list[dict] = []
     if kills_df is not None and not kills_df.empty:
         for row in kills_df.to_dicts() if hasattr(kills_df, "to_dicts") else kills_df.to_dict("records"):
+            atk_name = _s(row.get("attacker_name"))
+            vic_name = _s(row.get("user_name"))
+            asst_name = _s(row.get("assister_name"))
+            atk_steamid = _s(row.get("attacker_steamid"))
+            vic_steamid = _s(row.get("user_steamid"))
+            asst_steamid = _s(row.get("assister_steamid"))
             kills.append({
                 "tick":         row.get("tick") or 0,
-                "attacker":     _s(row.get("attacker_name")),
-                "victim":       _s(row.get("user_name")),
-                "assister":     _s(row.get("assister_name")),
+                "attacker":     _key(atk_steamid, atk_name),
+                "victim":       _key(vic_steamid, vic_name),
+                "assister":     _key(asst_steamid, asst_name),
                 "atk_team":     row.get("attacker_X_team_num") or row.get("attacker_team_num"),
                 "vic_team":     row.get("user_X_team_num") or row.get("user_team_num"),
                 "round":        row.get("total_rounds_played") or -1,
@@ -109,7 +127,8 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     hurt: list[dict] = []
     if hurt_df is not None and not hurt_df.empty:
         for row in hurt_df.to_dicts() if hasattr(hurt_df, "to_dicts") else hurt_df.to_dict("records"):
-            atk = _s(row.get("attacker_name"))
+            atk_name = _s(row.get("attacker_name"))
+            atk = _key(_s(row.get("attacker_steamid")), atk_name)
             dmg = row.get("dmg_health") or 0
             if atk and dmg:
                 hurt.append({"attacker": atk, "dmg": int(dmg)})
@@ -122,26 +141,29 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
 
     flash_by_attacker: dict[str, int] = {}
     if flash_df is not None and not flash_df.empty:
-        col = "attacker_name"
-        if col in (flash_df.columns if hasattr(flash_df, "columns") else []):
+        cols = flash_df.columns if hasattr(flash_df, "columns") else []
+        if "attacker_name" in cols:
             for row in flash_df.to_dicts() if hasattr(flash_df, "to_dicts") else flash_df.to_dict("records"):
-                atk = _s(row.get(col))
+                atk = _key(_s(row.get("attacker_steamid")), _s(row.get("attacker_name")))
                 if atk:
                     flash_by_attacker[atk] = flash_by_attacker.get(atk, 0) + 1
     del flash_df
 
-    # ── 5. Coleta nomes únicos ────────────────────────────────────────────────
-    player_names: set[str] = set()
+    # ── 5. Coleta identidades únicas ──────────────────────────────────────────
+    player_keys: set[str] = set()
     for k in kills:
-        if k["attacker"]: player_names.add(k["attacker"])
-        if k["victim"]:   player_names.add(k["victim"])
+        if k["attacker"]: player_keys.add(k["attacker"])
+        if k["victim"]:   player_keys.add(k["victim"])
     for h in hurt:
-        if h["attacker"]: player_names.add(h["attacker"])
+        if h["attacker"]: player_keys.add(h["attacker"])
 
-    if not player_names:
+    if not player_keys:
         raise RuntimeError("Nenhum player encontrado no demo.")
 
-    stats: dict[str, dict] = {n: _empty(n) for n in player_names}
+    stats: dict[str, dict] = {
+        key: _empty(nickname=nicknames.get(key, key), steam_id=key if key in nicknames else "")
+        for key in player_keys
+    }
 
     # ── 6. Agrega métricas ────────────────────────────────────────────────────
     seen_opening_rounds: set = set()
@@ -234,9 +256,10 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     }
 
 
-def _empty(nickname: str) -> dict:
+def _empty(nickname: str, steam_id: str) -> dict:
     return {
         "nickname":          nickname,
+        "steam_id":          steam_id,
         "kills":             0,
         "deaths":            0,
         "assists":           0,

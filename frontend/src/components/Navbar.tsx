@@ -21,7 +21,6 @@ export function Navbar() {
     { label: "CHAT",       path: "/chat" },
     ...(isAdmin ? [
       { label: "GESTÃO",  path: "/admin" },
-      { label: "DEMO",    path: "/demo"  },
     ] : []),
   ];
 

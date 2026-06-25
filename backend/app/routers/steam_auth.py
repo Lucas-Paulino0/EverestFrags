@@ -79,7 +79,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
         profile = await get_steam_profile(steam_id, steam_api_key)
 
         # Cria ou atualiza o player no banco
-        player = get_or_create_by_steam(db, steam_id, profile)
+        player, _created = get_or_create_by_steam(db, steam_id, profile)
 
         # Gera JWT com o ID do player
         token = create_access_token({"sub": str(player.id)})

@@ -116,15 +116,23 @@ def authenticate(db: Session, nickname: str, password: str) -> Optional[Player]:
     return player
 
 
-def get_or_create_by_steam(db: Session, steam_id: str, profile: dict | None) -> "Player":
+def get_or_create_by_steam(
+    db: Session,
+    steam_id: str,
+    profile: dict | None = None,
+    fallback_nickname: str | None = None,
+) -> tuple["Player", bool]:
     """
     Busca um player pelo steam_id ou cria um novo com role 'viewer'.
+    Retorna (player, created) — created=True se acabou de ser criado.
 
     Se o player já existe e veio um perfil atualizado da Steam,
     sincroniza nickname e avatar_initials.
 
-    Se o nickname do perfil Steam já estiver em uso por outro player,
-    usa 'steam_XXXX' (últimos 4 dígitos do steam_id) como fallback.
+    Para o nickname do novo player, tenta nesta ordem: perfil Steam,
+    fallback_nickname (ex: nick visto numa demo), 'steam_XXXX' (últimos
+    4 dígitos do steam_id). Se o nickname escolhido já estiver em uso
+    por outro player, cai para 'steam_XXXX'.
     """
     player = db.query(Player).filter(Player.steam_id == steam_id).first()
 
@@ -144,15 +152,13 @@ def get_or_create_by_steam(db: Session, steam_id: str, profile: dict | None) -> 
                 ).upper()
             db.commit()
             db.refresh(player)
-        return player
+        return player, False
 
     # Primeiro acesso — cria o player
-    nickname = f"steam_{steam_id[-4:]}"  # fallback se não tiver perfil
-    if profile:
-        steam_nick = profile.get("personaname", nickname)
-        conflict = db.query(Player).filter(Player.nickname == steam_nick).first()
-        if not conflict:
-            nickname = steam_nick
+    nickname = (profile and profile.get("personaname")) or fallback_nickname or f"steam_{steam_id[-4:]}"
+    conflict = db.query(Player).filter(Player.nickname == nickname).first()
+    if conflict:
+        nickname = f"steam_{steam_id[-4:]}"
 
     words = nickname.split()
     initials = (words[0][0] + (words[1][0] if len(words) > 1 else words[0][-1])).upper()
@@ -161,14 +167,14 @@ def get_or_create_by_steam(db: Session, steam_id: str, profile: dict | None) -> 
         nickname=nickname,
         steam_id=steam_id,
         avatar_initials=initials,
-        password_hash=None,   # sem senha — acesso só via Steam
+        password_hash=None,   # sem senha — acesso só via Steam ou criado via demo
         role="viewer",
         is_active=True,
     )
     db.add(player)
     db.commit()
     db.refresh(player)
-    return player
+    return player, True
 
 
 def change_password(db: Session, player: Player, current_password: str, new_password: str) -> None:

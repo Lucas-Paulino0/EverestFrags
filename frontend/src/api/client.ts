@@ -285,3 +285,70 @@ export const sortApi = {
       `/api/sort-teams?players=${playerIds.join(",")}&teams=${teams}`
     ),
 };
+
+// ─── Demo parser ────────────────────────────────────────────────────────────
+
+export interface DemoPlayerStat {
+  nickname: string;
+  steam_id: string;
+  player_id: number | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  damage_total: number;
+  adr: number;
+  adr_difference: number;
+  hltv_rating: number;
+  kast_percent: number;
+  opening_kills: number;
+  trade_kills: number;
+  trade_denials: number;
+  time_to_kill_ms: number;
+  flash_assists: number;
+  grenade_damage: number;
+  he_enemies_hit: number;
+  fire_enemies_hit: number;
+  disadvantage_kills: number;
+  advantage_kills: number;
+  eco_kills: number;
+}
+
+export interface DemoCreatedPlayer {
+  id: number;
+  nickname: string;
+  steam_id: string;
+}
+
+export interface DemoParseResult {
+  map_name: string | null;
+  total_rounds: number;
+  players: DemoPlayerStat[];
+  created_players: DemoCreatedPlayer[];
+  errors: string[];
+}
+
+export const demoApi = {
+  // Upload multipart — não usa request() porque o Content-Type (boundary)
+  // precisa ser definido automaticamente pelo browser, não como JSON.
+  parse: async (file: File): Promise<DemoParseResult> => {
+    const token = getToken();
+    const fd = new FormData();
+    fd.append("file", file);
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE_URL}/api/demo/parse`, { method: "POST", headers, body: fd });
+
+    if (res.status === 401) {
+      localStorage.removeItem("ef_token");
+      localStorage.removeItem("ef_player");
+      window.location.href = "/login";
+      throw new Error("Sessão expirada");
+    }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: "Erro desconhecido" }));
+      throw new Error(error.detail ?? "Erro ao processar demo");
+    }
+    return res.json();
+  },
+};
