@@ -32,6 +32,7 @@ class PlayerStatsCreate(BaseModel):
     # Duelos
     opening_kills: int = Field(0, ge=0)
     trade_kills: int = Field(0, ge=0)
+    trade_denials: int = Field(0, ge=0)
     # TTK em milissegundos — 0 significa sem dados
     time_to_kill_ms: int = Field(0, ge=0)
 
@@ -58,6 +59,7 @@ class PlayerStatsInMatch(BaseModel):
     kast_percent: float
     opening_kills: int
     trade_kills: int
+    trade_denials: int
     time_to_kill_ms: int
     flash_assists: int
     grenade_damage: int

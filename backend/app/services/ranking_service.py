@@ -33,7 +33,7 @@ from app.schemas.ranking import RankingEntry
 # Métricas de soma — agregadas somando valores de todas as partidas
 SOMA_METRICS = [
     "kills", "deaths", "assists", "damage_total",
-    "opening_kills", "trade_kills",
+    "opening_kills", "trade_kills", "trade_denials",
     "flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit",
 ]
 
@@ -50,7 +50,7 @@ COMBAT_METRICS = [
     "kills", "deaths", "assists", "damage_total",
     "adr", "adr_difference", "hltv_rating", "kast_percent", "grenade_damage",
 ]
-DUEL_METRICS = ["opening_kills", "trade_kills", "time_to_kill_ms"]
+DUEL_METRICS = ["opening_kills", "trade_kills", "trade_denials", "time_to_kill_ms"]
 UTILITY_METRICS = ["flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit"]
 
 

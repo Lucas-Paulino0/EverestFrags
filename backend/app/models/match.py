@@ -88,6 +88,7 @@ class PlayerMatchStats(Base):
     # --- DUELOS (peso 30% no score final) ---
     opening_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     trade_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    trade_denials: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # TTK em milissegundos — menor é melhor, por isso é invertido na normalização
     time_to_kill_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

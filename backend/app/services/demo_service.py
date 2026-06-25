@@ -130,8 +130,9 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             atk_name = _s(row.get("attacker_name"))
             atk = _key(_s(row.get("attacker_steamid")), atk_name)
             dmg = row.get("dmg_health") or 0
+            weapon = _s(row.get("weapon")).lower()
             if atk and dmg:
-                hurt.append({"attacker": atk, "dmg": int(dmg)})
+                hurt.append({"attacker": atk, "dmg": int(dmg), "weapon": weapon})
     del hurt_df
 
     total_rounds = 1
@@ -213,10 +214,19 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
 
     del kills, recent_kills, seen_opening_rounds
 
-    # Dano / ADR
+    # Dano / ADR / Weapon stats
     dmg_totals: dict[str, int] = {}
     for h in hurt:
-        dmg_totals[h["attacker"]] = dmg_totals.get(h["attacker"], 0) + h["dmg"]
+        atk = h["attacker"]
+        dmg = h["dmg"]
+        weapon = h.get("weapon", "")
+        dmg_totals[atk] = dmg_totals.get(atk, 0) + dmg
+        if atk in stats:
+            if "hegrenade" in weapon:
+                stats[atk]["grenade_damage"] += dmg
+                stats[atk]["he_enemies_hit"] += 1
+            elif "inferno" in weapon or "molotov" in weapon or "incgrenade" in weapon:
+                stats[atk]["fire_enemies_hit"] += 1
     del hurt
 
     for name, dmg in dmg_totals.items():
@@ -224,6 +234,12 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             stats[name]["damage_total"] = dmg
             stats[name]["adr"] = round(dmg / total_rounds, 1)
     del dmg_totals
+
+    # adr_difference = ADR do jogador - ADR médio da partida
+    all_adrs = [s["adr"] for s in stats.values()]
+    mean_adr = sum(all_adrs) / len(all_adrs) if all_adrs else 0.0
+    for s in stats.values():
+        s["adr_difference"] = round(s["adr"] - mean_adr, 1)
 
     # Flash assists
     for name, cnt in flash_by_attacker.items():

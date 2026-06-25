@@ -85,14 +85,15 @@ def get_current_player(
         raise credentials_exception
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        nickname: Optional[str] = payload.get("sub")
-        if not nickname:
+        sub: Optional[str] = payload.get("sub")
+        if not sub:
             raise credentials_exception
-    except JWTError:
+        player_id = int(sub)
+    except (JWTError, ValueError):
         raise credentials_exception
 
     player = db.query(Player).filter(
-        Player.nickname == nickname,
+        Player.id == player_id,
         Player.is_active == True,  # noqa: E712
     ).first()
     if not player:

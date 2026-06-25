@@ -14,8 +14,9 @@ O EverestFrags resolve dois problemas centrais:
    reais do jogo (kills, ADR, HLTV Rating, opening kills, flash assists…). O ranking mostra,
    de forma objetiva, quem são os melhores do grupo.
 
-2. **Sorteio equilibrado** — com o ranking em mãos, o sistema usa Snake Draft para distribuir
-   os jogadores selecionados em 2 ou 3 times, minimizando a diferença de skill total entre eles.
+2. **Sorteio equilibrado** — com o ranking em mãos, o sistema gera todas as combinações possíveis
+   (ou amostra 6.000 para grupos grandes) e escolhe aleatoriamente entre as divisões dentro de uma
+   margem de 40-60%, garantindo times diferentes a cada sessão mas sempre equilibrados.
 
 ---
 
@@ -139,11 +140,12 @@ player_match_stats                          ranking_config
   damage_total, adr, adr_difference
   hltv_rating, kast_percent         ◄── matches
   opening_kills, trade_kills            id (PK)
-  time_to_kill_ms                       scope_url  (link scope.gg)
-  flash_assists, grenade_damage         played_at  (date)
-  he_enemies_hit, fire_enemies_hit      map_name
-  -- situacionais (HLTV 3.0) --              notes
-  -- ⚠ ainda NÃO existem no model --     created_at
+  trade_denials                         scope_url  (link scope.gg)
+  time_to_kill_ms                       played_at  (date)
+  flash_assists, grenade_damage         map_name
+  he_enemies_hit, fire_enemies_hit      notes
+  -- situacionais (precisam parse_ticks)     created_at
+  -- disadvantage/advantage/eco_kills --
   -- ver "O que falta implementar" --
 ```
 
@@ -615,11 +617,21 @@ players / player123
 
 ### Futuro
 - [ ] `disadvantage_kills`, `advantage_kills`, `eco_kills` não são calculadas no demo parser ainda (precisam de `parse_ticks`)
-- [ ] `trade_denials` já É calculada em `demo_service.py`, mas não existe coluna em `PlayerMatchStats`/`PlayerStatsCreate` — hoje esse valor é descartado ao criar a partida
-- [ ] `ranking_service.py` não usa nenhuma das 4 métricas situacionais no cálculo do score — os multiplicadores documentados na seção "Score Combate" são spec, não código
+- [x] ~~`trade_denials` já É calculada em `demo_service.py`, mas não existe coluna em `PlayerMatchStats`~~ → **implementado** — coluna adicionada ao model, schema, service e router; entra no score de Duelos
+- [x] ~~`ranking_service.py` não usa `trade_denials`~~ → **implementado** — adicionado a `SOMA_METRICS` e `DUEL_METRICS`
+- [x] ~~`adr_difference` sempre 0.0 no demo parser~~ → **implementado** — calculado como `adr_player - mean_adr` após parsear todos os jogadores
+- [x] ~~`grenade_damage`/`he_enemies_hit`/`fire_enemies_hit` sem parsing por tipo de arma~~ → **implementado** — demo_service agora lê campo `weapon` do evento `player_hurt` e diferencia HE, molotov/incendiária
+- [ ] `ranking_service.py` não usa eco_kills/disadvantage_kills/advantage_kills (spec, não código) — depende de `parse_ticks`
 - [ ] Alembic — migrações incrementais quando o schema precisar evoluir
 - [ ] Integração direta com scope.gg (scraping ou API oficial se existir)
 - [ ] Aviso explícito no AddMatch quando um `player_id` resolvido pelo demo pertence a uma conta `is_active=False` (hoje o jogador some da tabela sem nenhum aviso — só o caso "sem steam_id" é avisado)
+
+> **Migração necessária se o banco já existia:**
+> ```sql
+> ALTER TABLE player_match_stats
+>   ADD COLUMN IF NOT EXISTS trade_denials INTEGER NOT NULL DEFAULT 0;
+> ```
+> Se o banco foi recriado com `python seed.py` após este commit, a coluna já existe.
 
 ---
 
@@ -691,3 +703,21 @@ código antigo (sem `steam_id`/`player_id`/`created_players`), causando
 `Cannot read properties of undefined (reading 'length')` no frontend.
 **Fix:** restart manual do processo uvicorn. Se mudanças no backend não parecerem ter
 efeito, suspeite do reloader antes de suspeitar do código — reinicie e teste de novo.
+
+### Bug 14 — JWT `sub` inconsistente entre login normal e Steam
+Login normal (`POST /api/auth/login`) gerava token com `sub = player.nickname` (string).
+Login Steam (`GET /api/auth/steam/callback`) gerava token com `sub = str(player.id)` (int em string).
+`get_current_player` tentava fazer `filter(Player.nickname == sub)` — funcionava só para login normal.
+Para Steam: sub era "1" (o ID) e nenhum player tem nickname "1" → 401 em toda rota autenticada.
+Chat (`chat.py`) fazia `int(sub)` → `int("admin")` levantava `ValueError` para login normal.
+**Fix:** padronizado para `sub = str(player.id)` em ambos os logins.
+`get_current_player` atualizado para `filter(Player.id == int(sub))`.
+
+### Bug 15 — `backend/database.py` (nível raiz) com markdown misturado ao Python
+O arquivo raiz `backend/database.py` (diferente de `backend/app/database.py` que é o usado pelo app)
+continha código Python correto nas primeiras linhas mas tinha conteúdo do `SETUP_BANCO.md`
+copiado junto — terminava em ` ``` ` e resto do markdown, tornando o arquivo Python inválido.
+Como `main.py` importa de `app.database`, o arquivo raiz não afetava o runtime, mas gerava
+confusão e erros se importado diretamente.
+**Fix:** arquivo raiz limpado para conter só o Python válido com a validação mais estrita
+(`raise RuntimeError` se `DATABASE_URL` não estiver definida).

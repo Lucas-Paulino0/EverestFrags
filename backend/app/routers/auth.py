@@ -33,7 +33,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
             detail="Credenciais inválidas",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token({"sub": player.nickname})
+    token = create_access_token({"sub": str(player.id)})
     return TokenResponse(
         access_token=token,
         player=PlayerPublic(

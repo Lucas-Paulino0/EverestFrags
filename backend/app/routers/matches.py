@@ -92,6 +92,7 @@ def _to_detail_response(match) -> MatchDetailResponse:
                 kast_percent=float(s.kast_percent),
                 opening_kills=s.opening_kills,
                 trade_kills=s.trade_kills,
+                trade_denials=s.trade_denials,
                 time_to_kill_ms=s.time_to_kill_ms,
                 flash_assists=s.flash_assists,
                 grenade_damage=s.grenade_damage,

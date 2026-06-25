@@ -100,6 +100,7 @@ def create_match(db: Session, data: MatchCreate) -> Match:
             kast_percent=ps.kast_percent,
             opening_kills=ps.opening_kills,
             trade_kills=ps.trade_kills,
+            trade_denials=ps.trade_denials,
             time_to_kill_ms=ps.time_to_kill_ms,
             flash_assists=ps.flash_assists,
             grenade_damage=ps.grenade_damage,
