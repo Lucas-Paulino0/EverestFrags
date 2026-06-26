@@ -3,8 +3,7 @@ Seed — dados iniciais do EverestFrags
 
 Executa UMA vez para criar:
   1. Admin inicial (nickname: "admin", senha: "fragstack2025")
-  2. Linha inicial da ranking_config (pesos padrão 50/30/20)
-  3. Players reais do grupo (13 jogadores com Steam ID vinculado)
+  2. Players reais do grupo (13 jogadores com Steam ID vinculado)
 
 IMPORTANTE: Trocar a senha do admin após o primeiro login!
 
@@ -27,7 +26,6 @@ load_dotenv()
 
 from app.database import SessionLocal, engine, Base
 from app.models.player import Player
-from app.models.ranking_config import RankingConfig
 from app.services.auth_service import hash_password
 
 Base.metadata.create_all(bind=engine)
@@ -85,16 +83,7 @@ def seed():
         else:
             print("- Admin ja existe, pulando")
 
-        # 2. Ranking config
-        if not db.query(RankingConfig).first():
-            config = RankingConfig(weight_combat=0.50, weight_duel=0.30, weight_utility=0.20)
-            db.add(config)
-            db.flush()
-            print("+ Ranking config criada (50/30/20)")
-        else:
-            print("- Ranking config ja existe, pulando")
-
-        # 3. Players reais
+        # 2. Players reais
         created = 0
         skipped = 0
         for nickname, steam_id in REAL_PLAYERS:

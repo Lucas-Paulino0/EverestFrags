@@ -20,6 +20,28 @@ function getToken(): string | null {
   return localStorage.getItem("ef_token");
 }
 
+/**
+ * Formata o campo "detail" de um erro do FastAPI pra texto legível.
+ * Em erros de validação (422), "detail" não é string — é um array de
+ * { loc, msg, type, ... } do Pydantic. Sem isso, `new Error(arrayDeObjetos)`
+ * vira "[object Object],[object Object]" (toString padrão de array de objetos).
+ */
+function formatErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map(d => {
+        if (d && typeof d === "object" && "msg" in d) {
+          const loc = Array.isArray((d as any).loc) ? (d as any).loc.join(".") : "";
+          return loc ? `${loc}: ${(d as any).msg}` : String((d as any).msg);
+        }
+        return JSON.stringify(d);
+      })
+      .join(" · ");
+  }
+  return "Erro na requisição";
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -43,7 +65,7 @@ async function request<T>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Erro desconhecido" }));
-    throw new Error(error.detail ?? "Erro na requisição");
+    throw new Error(formatErrorDetail(error.detail));
   }
 
   // 204 No Content — sem body
@@ -93,37 +115,40 @@ export interface RankingEntry {
   player_nickname: string;
   avatar_initials: string;
   total_matches: number;
+
+  // Métricas brutas agregadas — soma
   kills: number;
   deaths: number;
+  assists: number;
+  damage_total: number;
+  opening_kills: number;
+  trade_kills: number;
+  trade_denials: number;
+  flash_assists: number;
+  grenade_damage: number;
+  he_enemies_hit: number;
+  fire_enemies_hit: number;
+  disadvantage_kills: number;
+  advantage_kills: number;
+  eco_kills: number;
+
+  // Métricas brutas agregadas — média
   kd_ratio: number;
   adr: number;
+  adr_difference: number;
   hltv_rating: number;
   kast_percent: number;
+  time_to_kill_ms: number;
+
+  // Scores por categoria + final (0-100)
   score_combat: number;
   score_duel: number;
   score_utility: number;
   score_final: number;
 }
 
-export interface RankingConfig {
-  id: number;
-  weight_combat: number;
-  weight_duel: number;
-  weight_utility: number;
-  updated_at: string;
-  updated_by_nickname: string | null;
-}
-
 export const rankingApi = {
   get: () => request<RankingEntry[]>("/api/ranking"),
-
-  getConfig: () => request<RankingConfig>("/api/ranking/config"),
-
-  updateConfig: (weight_combat: number, weight_duel: number, weight_utility: number) =>
-    request<RankingConfig>("/api/ranking/config", {
-      method: "PUT",
-      body: JSON.stringify({ weight_combat, weight_duel, weight_utility }),
-    }),
 };
 
 // ─── Players ────────────────────────────────────────────────────────────────
@@ -162,6 +187,11 @@ export const playersApi = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+
+  steamLookup: (steamId: string) =>
+    request<{ nickname: string | null; avatar_url: string | null }>(
+      `/api/players/steam-lookup?steam_id=${encodeURIComponent(steamId)}`
+    ),
 };
 
 // ─── Matches ────────────────────────────────────────────────────────────────
@@ -176,8 +206,12 @@ export interface PlayerStatsCreate {
   adr_difference?: number;
   hltv_rating?: number;
   kast_percent?: number;
+  disadvantage_kills?: number;
+  advantage_kills?: number;
+  eco_kills?: number;
   opening_kills?: number;
   trade_kills?: number;
+  trade_denials?: number;
   time_to_kill_ms?: number;
   flash_assists?: number;
   grenade_damage?: number;
@@ -222,8 +256,12 @@ export interface PlayerStatsInMatch {
   adr_difference: number;
   hltv_rating: number;
   kast_percent: number;
+  disadvantage_kills: number;
+  advantage_kills: number;
+  eco_kills: number;
   opening_kills: number;
   trade_kills: number;
+  trade_denials: number;
   time_to_kill_ms: number;
   flash_assists: number;
   grenade_damage: number;
@@ -324,6 +362,7 @@ export interface DemoParseResult {
   total_rounds: number;
   players: DemoPlayerStat[];
   created_players: DemoCreatedPlayer[];
+  inactive_players: DemoCreatedPlayer[];
   errors: string[];
 }
 
@@ -347,7 +386,7 @@ export const demoApi = {
     }
     if (!res.ok) {
       const error = await res.json().catch(() => ({ detail: "Erro desconhecido" }));
-      throw new Error(error.detail ?? "Erro ao processar demo");
+      throw new Error(formatErrorDetail(error.detail));
     }
     return res.json();
   },

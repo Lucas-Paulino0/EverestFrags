@@ -15,9 +15,9 @@ const CARD_TOP= ["#04222b", "#0f1033", "#1a1100"];
 const MEDAL   = ["01", "02", "03"];
 const NUM_COL = ["#22d3ee", "#818cf8", "#e8b948"];
 
-interface PodiumCardProps { entry: RankingEntry }
+interface PodiumCardProps { entry: RankingEntry; onClick?: () => void }
 
-export function PodiumCard({ entry }: PodiumCardProps) {
+export function PodiumCard({ entry, onClick }: PodiumCardProps) {
   const i = entry.rank - 1;
   const accent    = ACCENT[i]   ?? ACCENT[0];
   const border    = BORDER[i]   ?? BORDER[0];
@@ -25,14 +25,18 @@ export function PodiumCard({ entry }: PodiumCardProps) {
   const numColor  = NUM_COL[i]  ?? NUM_COL[0];
 
   return (
-    <div style={{
-      flex: 1,
-      minWidth: 220,
-      border: `1px solid ${border}`,
-      background: `linear-gradient(180deg, ${cardTop}, #0d1218)`,
-      padding: "22px 22px 20px",
-      position: "relative",
-    }}>
+    <div
+      onClick={onClick}
+      style={{
+        flex: 1,
+        minWidth: 220,
+        border: `1px solid ${border}`,
+        background: `linear-gradient(180deg, ${cardTop}, #0d1218)`,
+        padding: "22px 22px 20px",
+        position: "relative",
+        cursor: onClick ? "pointer" : undefined,
+      }}
+    >
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: accent }} />
 
       {/* Posição + iniciais + score */}

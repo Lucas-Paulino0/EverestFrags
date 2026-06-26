@@ -1,5 +1,5 @@
 from app.models.player import Player
 from app.models.match import Match, PlayerMatchStats
-from app.models.ranking_config import RankingConfig
+from app.models.chat_message import ChatMessage
 
-__all__ = ["Player", "Match", "PlayerMatchStats", "RankingConfig"]
+__all__ = ["Player", "Match", "PlayerMatchStats", "ChatMessage"]

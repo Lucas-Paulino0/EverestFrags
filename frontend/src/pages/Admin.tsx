@@ -30,6 +30,22 @@ function CreatePlayerModal({ onClose, onSuccess }: CreateModalProps) {
   const [msg, setMsg] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  async function handleLookup() {
+    if (!steamId.trim()) return;
+    setLookingUp(true);
+    setMsg(""); setIsError(false);
+    try {
+      const profile = await playersApi.steamLookup(steamId.trim());
+      if (profile.nickname) setNick(profile.nickname);
+    } catch (e: any) {
+      setMsg(e.message ?? "Erro ao buscar perfil Steam.");
+      setIsError(true);
+    } finally {
+      setLookingUp(false);
+    }
+  }
 
   const initials = nick.trim()
     ? (() => {
@@ -158,12 +174,23 @@ function CreatePlayerModal({ onClose, onSuccess }: CreateModalProps) {
             </div>
             <div>
               <label style={labelStyle}>STEAM ID <span style={{ fontSize: 9, color: "#3a4757" }}>(opcional)</span></label>
-              <input
-                value={steamId}
-                onChange={e => setSteamId(e.target.value)}
-                placeholder="76561198xxxxxxxxx"
-                style={inputStyle}
-              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={steamId}
+                  onChange={e => setSteamId(e.target.value)}
+                  placeholder="76561198xxxxxxxxx"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={handleLookup}
+                  disabled={!steamId.trim() || lookingUp}
+                  title="Buscar nickname desse Steam ID na Steam Web API"
+                  style={{ flexShrink: 0, background: "none", border: "1px solid #1e2a36", color: steamId.trim() ? "#22d3ee" : "#3a4757", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, padding: "0 14px", cursor: steamId.trim() ? "pointer" : "default" }}
+                >
+                  {lookingUp ? "..." : "BUSCAR"}
+                </button>
+              </div>
             </div>
           </div>
 

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { matchesApi, type MatchResponse } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { Navbar } from "../components/Navbar";
 
 export function Matches() {
   const { isAdmin } = useAuth();
@@ -48,16 +49,15 @@ export function Matches() {
   const totalPages = Math.ceil(total / 20);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080808", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", padding: "32px 48px" }}>
+    <div style={{ minHeight: "100vh", background: "#070a0e", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", paddingBottom: 32 }}>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <Navbar />
+
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 48px" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div>
-            <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0, letterSpacing: 1 }}>
-              ← RANKING
-            </button>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 32, fontWeight: 700, color: "#f4f4f4", marginTop: 6 }}>
+            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 32, fontWeight: 700, color: "#f4f4f4" }}>
               HISTÓRICO DE PARTIDAS
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5a5a5a", marginTop: 4 }}>
@@ -67,7 +67,7 @@ export function Matches() {
           {isAdmin && (
             <button
               onClick={() => navigate("/matches/new")}
-              style={{ background: "#cc2200", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: 1.5, padding: "12px 22px", cursor: "pointer" }}
+              style={{ background: "#0e7490", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: 1.5, padding: "12px 22px", cursor: "pointer" }}
             >
               + ADICIONAR PARTIDA
             </button>
@@ -105,7 +105,7 @@ export function Matches() {
                     {m.map_name ?? "—"}
                   </div>
                   {m.scope_url && (
-                    <a href={m.scope_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 10, color: "#cc2200", fontFamily: "'JetBrains Mono', monospace" }}>
+                    <a href={m.scope_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 10, color: "#0e7490", fontFamily: "'JetBrains Mono', monospace" }}>
                       scope.gg ↗
                     </a>
                   )}
@@ -132,7 +132,7 @@ export function Matches() {
                     key={p}
                     onClick={() => load(p)}
                     style={{
-                      background: p === page ? "#cc2200" : "transparent",
+                      background: p === page ? "#0e7490" : "transparent",
                       border: "1px solid #2a2a2a",
                       color: p === page ? "#fff" : "#666",
                       fontFamily: "'JetBrains Mono', monospace",

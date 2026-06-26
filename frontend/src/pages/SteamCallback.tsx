@@ -46,7 +46,7 @@ export function SteamCallback() {
         alignItems: "center",
         justifyContent: "center",
         height: "100vh",
-        background: "#080808",
+        background: "#070a0e",
         gap: 16,
       }}
     >
@@ -56,7 +56,7 @@ export function SteamCallback() {
           width: 36,
           height: 36,
           border: "2px solid #1c1c1c",
-          borderTopColor: "#cc2200",
+          borderTopColor: "#0e7490",
           borderRadius: "50%",
           animation: "spin 0.8s linear infinite",
         }}

@@ -15,6 +15,7 @@ export function Navbar() {
 
   const tabs = [
     { label: "RANKING",    path: "/" },
+    { label: "MÉTRICAS",   path: "/metrics" },
     { label: "SORTEIO",    path: "/sort" },
     { label: "PARTIDAS",   path: "/matches" },
     { label: "MEU PERFIL", path: "/profile" },

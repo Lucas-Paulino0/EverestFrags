@@ -12,11 +12,16 @@ import { Navbar } from "../components/Navbar";
 
 interface ChatMessage {
   type: "message" | "join" | "leave";
-  player_id: number;
+  player_id: number | null;
   nickname: string;
   avatar_initials: string;
   text: string;
   timestamp: string;
+}
+
+interface HistoryPayload {
+  type: "history";
+  messages: ChatMessage[];
 }
 
 const WS_URL = import.meta.env.VITE_API_URL
@@ -49,8 +54,12 @@ export function Chat() {
     ws.onerror = () => setConnected(false);
     ws.onmessage = (e) => {
       try {
-        const msg: ChatMessage = JSON.parse(e.data);
-        setMessages(prev => [...prev.slice(-199), msg]);
+        const data: ChatMessage | HistoryPayload = JSON.parse(e.data);
+        if (data.type === "history") {
+          setMessages(data.messages.slice(-200));
+        } else {
+          setMessages(prev => [...prev.slice(-199), data]);
+        }
       } catch {}
     };
 

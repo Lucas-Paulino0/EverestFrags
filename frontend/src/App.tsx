@@ -9,6 +9,7 @@
  *   /matches/new   → admin (adicionar partida)
  *   /matches/:id   → público (detalhes da partida — stats básicas)
  *   /sort          → público (sorteio de times)
+ *   /metrics       → público (leaderboard por métrica crua)
  *   /profile       → autenticado (perfil pessoal + alterar senha)
  *   /admin         → admin (gestão de players e partidas)
  *   /chat          → público (placeholder — WebSocket em desenvolvimento)
@@ -28,6 +29,7 @@ import { Matches } from "./pages/Matches";
 import { MatchDetail } from "./pages/MatchDetail";
 import { AddMatch } from "./pages/AddMatch";
 import { Sort } from "./pages/Sort";
+import { Metrics } from "./pages/Metrics";
 import { Profile } from "./pages/Profile";
 import { Admin } from "./pages/Admin";
 import { Chat } from "./pages/Chat";
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/matches/new" element={<AdminRoute><AddMatch /></AdminRoute>} />
           <Route path="/matches/:id" element={<MatchDetail />} />
           <Route path="/sort" element={<Sort />} />
+          <Route path="/metrics" element={<Metrics />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/chat" element={<Chat />} />

@@ -28,6 +28,9 @@ class PlayerStatsCreate(BaseModel):
     adr_difference: float = Field(0.0, ge=-500.0, le=500.0)
     hltv_rating: float = Field(0.0, ge=0.0, le=5.0)
     kast_percent: float = Field(0.0, ge=0.0, le=100.0)
+    disadvantage_kills: int = Field(0, ge=0)
+    advantage_kills: int = Field(0, ge=0)
+    eco_kills: int = Field(0, ge=0)
 
     # Duelos
     opening_kills: int = Field(0, ge=0)
@@ -57,6 +60,9 @@ class PlayerStatsInMatch(BaseModel):
     adr_difference: float
     hltv_rating: float
     kast_percent: float
+    disadvantage_kills: int
+    advantage_kills: int
+    eco_kills: int
     opening_kills: int
     trade_kills: int
     trade_denials: int

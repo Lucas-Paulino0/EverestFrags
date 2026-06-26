@@ -41,35 +41,39 @@ EverestFrags/
 │   ├── .env                         ← Variáveis de ambiente — NÃO commitar
 │   ├── .env.example                 ← Template comentado do .env
 │   ├── requirements.txt
+│   ├── alembic.ini                  ← Config Alembic (sqlalchemy.url sobrescrita em runtime por env.py)
+│   ├── alembic/
+│   │   ├── env.py                   ← Lê DATABASE_URL do .env, target_metadata = Base.metadata
+│   │   └── versions/                ← Migrações (baseline 8c264163dd4b = schema atual, stamped)
 │   └── app/
 │       ├── database.py              ← Engine SQLAlchemy, SessionLocal, get_db()
 │       ├── models/
 │       │   ├── player.py            ← Player (auth embutido: password_hash, role, is_active)
-│       │   ├── match.py             ← Match + PlayerMatchStats (15 métricas)
-│       │   └── ranking_config.py   ← RankingConfig (singleton de pesos — sempre 1 linha)
+│       │   ├── match.py             ← Match + PlayerMatchStats (18 métricas)
+│       │   └── chat_message.py      ← ChatMessage (histórico persistente do chat)
 │       ├── schemas/
 │       │   ├── player.py            ← PlayerCreate, PlayerUpdate, PlayerPublic, PlayerResponse
 │       │   ├── match.py             ← MatchCreate, MatchDetailResponse, PaginatedMatchResponse
 │       │   ├── auth.py              ← LoginRequest, TokenResponse, PasswordChange
-│       │   ├── ranking.py           ← RankingEntry, RankingConfigUpdate (valida soma = 1.0)
+│       │   ├── ranking.py           ← RankingEntry (todas as métricas brutas + scores)
 │       │   └── sort.py              ← SortTeamsResponse, TeamResult, PlayerInTeam
 │       ├── services/
 │       │   ├── auth_service.py      ← JWT, bcrypt, get_current_player, require_admin
 │       │   ├── player_service.py    ← CRUD, authenticate(), get_or_create_by_steam()
 │       │   ├── match_service.py     ← CRUD matches + stats (transação única com flush)
-│       │   ├── ranking_service.py   ← Fórmula min-max normalização + pesos do banco
+│       │   ├── ranking_service.py   ← Fórmula min-max normalização + pesos fixos (1/3 cada)
 │       │   ├── sort_service.py      ← Algoritmo Snake Draft em memória
 │       │   ├── steam_service.py     ← OpenID build_redirect, verify_response, get_steam_profile
 │       │   └── demo_service.py      ← Parser .dem: 4 eventos, sem parse_ticks, dicts leves, chave = steamid
 │       └── routers/
 │           ├── auth.py              ← POST /login, GET /me, POST /change-password, POST /logout
 │           ├── steam_auth.py        ← GET /steam, GET /steam/callback
-│           ├── players.py           ← GET/POST /players, GET/PATCH /players/{id}
+│           ├── players.py           ← GET/POST /players, GET/PATCH /players/{id}, GET /players/steam-lookup
 │           ├── matches.py           ← GET/POST /matches, GET/DELETE /matches/{id}
-│           ├── ranking.py           ← GET /ranking (público), GET/PUT /ranking/config (admin)
+│           ├── ranking.py           ← GET /ranking (público — sem mais config de pesos)
 │           ├── sort.py              ← GET /sort-teams?players=1,2,3&teams=2
-│           ├── chat.py              ← WS /chat/ws?token=JWT (broadcast em memória, sem persistência)
-│           └── demo.py              ← POST /demo/parse (upload .dem, admin only, max 750 MB) — casa/cria players via steam_id
+│           ├── chat.py              ← WS /chat/ws?token=JWT (broadcast + persiste em chat_messages, histórico ao conectar)
+│           └── demo.py              ← POST /demo/parse (upload .dem, admin only, max 750 MB) — casa/cria players via steam_id, avisa contas inativas
 │
 ├── frontend/
 │   ├── index.html                   ← HTML base com Google Fonts (Barlow Condensed, Inter, JetBrains Mono)
@@ -88,13 +92,14 @@ EverestFrags/
 │       │   ├── Navbar.tsx           ← Barra de navegação (Dashboard/Partidas/Sorteio/Chat/Perfil)
 │       │   ├── RadarChart.tsx       ← SVG hexagonal puro, 6 eixos, sem biblioteca
 │       │   ├── CategoryBar.tsx      ← Barra de progresso por categoria
-│       │   ├── PodiumCard.tsx       ← Card top-3 (radar + barras + pills)
-│       │   ├── RankCard.tsx         ← Card médio (4–11) e compacto (12+)
-│       │   └── WeightConfigModal.tsx← Modal com sliders interdependentes
+│       │   ├── PodiumCard.tsx       ← Card top-3 (radar + barras + pills), clicável → modal
+│       │   ├── RankCard.tsx         ← Card médio (4–11) e compacto (12+), clicável → modal
+│       │   └── PlayerDetailModal.tsx← Modal de detalhe do player (todas as métricas cruas)
 │       └── pages/
 │           ├── Login.tsx            ← Login nickname+senha e botão "Entrar com Steam"
 │           ├── SteamCallback.tsx    ← Processa redirect do Steam (/auth/callback)
 │           ├── Dashboard.tsx        ← Ranking: pódio + grade + lista compacta
+│           ├── Metrics.tsx          ← /metrics — leaderboard por métrica crua (ADR, trades, etc.)
 │           ├── Matches.tsx          ← Histórico paginado + delete (admin) + clique abre MatchDetail
 │           ├── MatchDetail.tsx      ← /matches/:id — stats básicas (K/D/A, +/-, ADR, RATING) + delete (admin)
 │           ├── AddMatch.tsx         ← Formulário nova partida + drop-zone de .dem embutida (extrai e preenche na mesma tela)
@@ -127,26 +132,33 @@ players ────────────────────────
   role            'admin' | 'viewer'               │
   is_active       boolean                         │
   created_at                                      │
-        │                                         │
-        │ 1:N                                     │ 1:N
-        ▼                                         ▼
-player_match_stats                          ranking_config
-  id (PK)                                     id (PK) ← sempre 1 linha
-  player_id  (FK → players)                   weight_combat   (ex: 0.50)
-  match_id   (FK → matches)                   weight_duel     (ex: 0.30)
-  UNIQUE(player_id, match_id)                 weight_utility  (ex: 0.20)
-  -- métricas base --                         updated_at
-  kills, deaths, assists                      updated_by (FK → players)
-  damage_total, adr, adr_difference
-  hltv_rating, kast_percent         ◄── matches
-  opening_kills, trade_kills            id (PK)
-  trade_denials                         scope_url  (link scope.gg)
-  time_to_kill_ms                       played_at  (date)
-  flash_assists, grenade_damage         map_name
-  he_enemies_hit, fire_enemies_hit      notes
-  -- situacionais (precisam parse_ticks)     created_at
-  -- disadvantage/advantage/eco_kills --
-  -- ver "O que falta implementar" --
+        │
+        │ 1:N
+        ▼
+player_match_stats
+  id (PK)
+  player_id  (FK → players)
+  match_id   (FK → matches)
+  UNIQUE(player_id, match_id)
+  -- métricas base --              matches
+  kills, deaths, assists              id (PK)
+  damage_total, adr, adr_difference   scope_url  (link scope.gg)
+  hltv_rating, kast_percent           played_at  (date)
+  opening_kills, trade_kills          map_name
+  trade_denials                       notes
+  time_to_kill_ms                     created_at
+  flash_assists, grenade_damage
+  he_enemies_hit, fire_enemies_hit
+  -- situacionais (Round Swing) --
+  disadvantage_kills, advantage_kills
+  eco_kills
+
+chat_messages              (player_id nullable — SET NULL se o player for deletado;
+  id (PK)                   nickname/avatar_initials são snapshot, não join)
+  player_id  (FK → players, ON DELETE SET NULL, nullable)
+  nickname, avatar_initials  (cópia do player no momento do envio)
+  text
+  created_at  (indexado — usado pra ordenar o histórico)
 ```
 
 ### Decisões de design do banco
@@ -160,14 +172,26 @@ Unificar evita JOINs desnecessários e mantém o modelo simples.
 Times não são persistidos. O sorteio é calculado em memória a cada requisição (`sort_service.py`).
 Isso foi intencional: os times mudam a cada sessão de jogo, guardar seria lixo no banco.
 
-**Por que RankingConfig é singleton (sempre 1 linha)?**
-Os pesos (combate/duelos/utility) são uma configuração global, não por partida.
-A lógica do `ranking_service.py` sempre lê a linha com `id=1`. A primeira linha
-é criada pelo `seed.py`; o admin só pode editar, nunca criar uma segunda.
+**Por que não existe mais tabela de configuração de pesos?**
+Existiu (`ranking_config`, singleton de 1 linha, editável pelo admin em 50/30/20).
+Foi removida — não só a UI, a tabela inteira — porque os pesos passaram a ser fixos e
+iguais (1/3 cada) direto no código (`ranking_service.py`). Ver "Sistema de Score e
+Ranking → Passo 4" pra justificativa completa. Sem uso editável, manter a tabela seria
+dado morto no banco — mesma lógica do Bug 15 (não deixar coisa sem dono).
 
-**Criação de tabelas**
-`Base.metadata.create_all()` roda no startup (`main.py`). Sem Alembic por enquanto.
-Cria tabelas se não existirem; não altera schema de tabelas já existentes.
+**Criação de tabelas e migrações**
+`Base.metadata.create_all()` roda no startup (`main.py`) — cria tabelas que não existem,
+nunca altera as que já existem; serve de fallback pra um banco totalmente novo (clone do
+zero). Mudanças de schema em bancos que já têm dados passam por Alembic (`backend/alembic/`):
+gerar revisão com `alembic revision --autogenerate -m "..."`, revisar o arquivo gerado,
+aplicar com `alembic upgrade head`. A baseline (`8c264163dd4b`) foi gerada com diff vazio
+(modelos já batiam com o schema existente) e marcada como aplicada via `alembic stamp head`
+sem rodar nenhum DDL.
+
+**Por que `chat_messages` guarda nickname/avatar_initials em vez de só fazer JOIN com players?**
+Histórico de chat deve continuar legível mesmo se o player for renomeado ou deletado depois.
+Por isso são uma cópia (snapshot) do momento do envio, e o FK usa `ON DELETE SET NULL`
+em vez de CASCADE — apagar uma conta não apaga as mensagens que ela mandou.
 
 ### Variáveis de ambiente necessárias (`.env`)
 
@@ -258,10 +282,14 @@ Se todos os jogadores têm o mesmo valor numa métrica → score = 50 para todos
 
 > Esses três multiplicadores são aplicados ANTES da normalização, ajustando o valor bruto
 > de kills de acordo com o contexto da rodada — mesma lógica do HLTV 3.0 Round Swing.
->
-> ⚠️ **Isto é o spec, não o código atual.** `ranking_service.py` ainda não lê
-> `eco_kills`/`disadvantage_kills`/`advantage_kills`/`trade_denials` — essas colunas nem
-> existem em `PlayerMatchStats` hoje. Ver "O que falta implementar".
+> Implementado em `ranking_service.py` via uma métrica derivada `weighted_kills`
+> (não persistida — calculada em memória a cada chamada do ranking):
+> ```
+> weighted_kills = kills - eco_kills*0.5 + disadvantage_kills*0.3 - advantage_kills*0.2
+> ```
+> `weighted_kills` substitui "kills" puro só dentro de `COMBAT_METRICS` (normalização do
+> score Combate). O "kills" puro continua aparecendo no ranking pro usuário (K/D, etc.)
+> sem nenhum ajuste — só o score Combate usa a versão ponderada.
 
 **Score Duelos** — média de:
 
@@ -284,62 +312,81 @@ Se todos os jogadores têm o mesmo valor numa métrica → score = 50 para todos
 ### Passo 4 — Score final ponderado
 
 ```
-score_final = (score_combate  × peso_combate)   # default 0.50
-            + (score_duelo    × peso_duelo)      # default 0.30
-            + (score_utility  × peso_utility)    # default 0.20
+score_final = (score_combate  × 1/3)
+            + (score_duelo    × 1/3)
+            + (score_utility  × 1/3)
 ```
 
-Os pesos são lidos da tabela `ranking_config` a cada cálculo — nunca hardcodados.
-O admin pode ajustá-los em tempo real pelo modal de configuração no Dashboard.
-A validação garante que a soma dos 3 pesos sempre seja exatamente 1.0 (100%).
+Pesos **fixos e iguais** (1/3 cada), definidos como constantes em `ranking_service.py`
+(`WEIGHT_COMBAT`/`WEIGHT_DUEL`/`WEIGHT_UTILITY`) — não existe mais edição de pesos (nem
+por admin). A versão anterior permitia configurar os pesos (ex: 50/30/20) via tabela
+`ranking_config` e um modal no Dashboard; isso foi removido por decisão de design, não
+só por preferência visual:
+
+> **Por que pesos iguais em vez de editáveis?** Deixar o admin escolher livremente quanto
+> cada categoria vale é, na prática, uma decisão subjetiva sem base objetiva — não há
+> motivo pra Combate valer mais que Utility além de "alguém decidiu assim". A alternativa
+> "mais rigorosa" seria derivar os pesos estatisticamente (ex: correlacionar cada score
+> com taxa de vitória do grupo), mas com o histórico de partidas ainda pequeno (~10-20
+> partidas) isso seria instável — mudaria a cada partida nova e seria difícil de explicar
+> pro grupo. Pesos iguais são a opção mais estável e defensável disponível agora: nenhuma
+> categoria é privilegiada por decisão de alguém, e não se move sozinha conforme mais
+> dados entram.
 
 ---
 
-## Métricas Situacionais — Como Calcular do .dem
+## Métricas Situacionais — Como São Calculadas do .dem
 
-Estas 4 métricas são calculadas em `demo_parser.py` durante o parsing do arquivo `.dem`:
+Implementadas em `demo_service.py`. Todas as 4 vêm dos eventos já parseados
+(`player_death`, `item_purchase`) — **nenhuma precisa de `parse_ticks()`**. A suposição
+inicial de que precisariam carregar todos os snapshots do demo em memória estava errada:
+contagem de vivos por time e gasto por round dão pra derivar só com os eventos certos,
+em ordem cronológica de tick.
 
-### disadvantage_kills — kill em desvantagem numérica
+### disadvantage_kills / advantage_kills — vantagem numérica no momento da kill
 
-```python
-# A cada kill, verificar contagem de jogadores vivos no momento
-# Se time do atirador tem MENOS jogadores vivos que o inimigo → disadvantage kill
-alive_attackers = count_alive(team=attacker_team, tick=kill_tick)
-alive_victims   = count_alive(team=victim_team,   tick=kill_tick)
-if alive_attackers < alive_victims:
-    disadvantage_kills += 1
-```
-
-### advantage_kills — kill em vantagem numérica
+Mantém um dict `alive: dict[team_num, count]` que reseta a cada round (`total_rounds_played`
+mudando) e decrementa a cada morte. No momento de cada kill, compara o tamanho do time do
+atirador com o do time da vítima ANTES de decrementar:
 
 ```python
-# Inverso: time do atirador tem MAIS jogadores vivos
-if alive_attackers > alive_victims:
-    advantage_kills += 1
-# Obs: kills em situação 1v1 (igual) não são nem advantage nem disadvantage
+if alive[atk_team] < alive[vic_team]:
+    disadvantage_kills += 1   # atirador em desvantagem numérica
+elif alive[atk_team] > alive[vic_team]:
+    advantage_kills += 1      # atirador em vantagem numérica
+# 1v1 (alive iguais) não conta pra nenhum dos dois
 ```
+
+`team_size` é estimado como `(jogadores_no_demo + 1) // 2` — assume times parelhos
+(mix 5v5 padrão do grupo); não lê o roster real de cada time pelo evento.
 
 ### eco_kills — kill contra inimigo mal equipado
 
+Soma o `cost` de cada `item_purchase` por `(round, steamid)` em `round_spend`. No momento
+da kill, se o gasto da vítima naquele round for `< ECO_THRESHOLD` (US$ 1000), conta como
+eco kill:
+
 ```python
-# Classificar o equipamento da vítima no momento da kill
-# Se valor de equipamento < ECO_THRESHOLD (ex: < $1000 de valor de arma) → eco kill
-victim_equipment_value = get_equipment_value(victim, tick=kill_tick)
-if victim_equipment_value < ECO_THRESHOLD:
+vic_spend = round_spend.get(rnd, {}).get(vic, 0)
+if vic_spend < ECO_THRESHOLD:
     eco_kills += 1
 ```
 
+⚠️ Aproximação documentada: só conta compras NOVAS naquele round, não reflete equipamento
+carregado de rounds anteriores (ex: AWP comprada e mantida sem nova compra) — não é o
+valor exato do loadout no momento da kill, mas funciona bem o suficiente pro caso de uso.
+
+### kast_percent — Kill/Assist/Survived/Traded
+
+Também recalculado de verdade (era hardcoded em 50.0). Por round, o jogador conta pro KAST
+se teve kill, assist, sobreviveu (não está em `died_rounds`) OU foi "traded" (um companheiro
+vingou sua morte em até `TRADE_WINDOW_TICKS`). `kast_percent = rounds_que_contam / total_rounds * 100`.
+
 ### trade_denials — impediu troca adversária
 
-```python
-# Após uma kill de um companheiro: se o atirador eliminar o attacker inimigo
-# em até 5 segundos, ele negou a troca do adversário
-WINDOW_TICKS = 5 * 64  # 5 segundos a 64 tick
-for teammate_kill in kills_by_team:
-    enemy_attacker = teammate_kill.attacker
-    if player_killed(enemy_attacker, within=WINDOW_TICKS, after=teammate_kill.tick):
-        trade_denials += 1
-```
+Janela de `TRADE_WINDOW_TICKS` (5s) olhando os últimos kills recentes: se o atirador elimina
+um inimigo cujo time acabou de tradar um companheiro do atirador, conta como trade denial.
+Calculado desde antes desta rodada de trabalho, mas só agora chega até o banco — ver Bug 11/17.
 
 ---
 
@@ -492,10 +539,11 @@ Após o login, o comportamento é idêntico independente do método — ambos us
 | GET /api/players/{id}/stats | — | ✓ | ✓ |
 | POST /api/auth/change-password | — | ✓ | ✓ |
 | POST /api/players | — | — | ✓ |
+| GET /api/players/steam-lookup | — | — | ✓ |
 | PATCH /api/players/{id} | — | — | ✓ |
 | POST /api/matches | — | — | ✓ |
 | DELETE /api/matches/{id} | — | — | ✓ |
-| GET/PUT /api/ranking/config | — | — | ✓ |
+| POST /api/demo/parse | — | — | ✓ |
 
 ---
 
@@ -533,7 +581,8 @@ cp .env.example .env
 # Preencher: DATABASE_URL, SECRET_KEY, STEAM_API_KEY, BACKEND_URL, FRONTEND_URL
 
 pip install -r requirements.txt
-python seed.py              # cria tabelas + dados de exemplo
+python seed.py              # cria tabelas (create_all) + dados de exemplo
+alembic stamp head          # marca o banco novo como já estando na baseline atual
 uvicorn main:app --reload --port 8001
 # Docs: http://localhost:8001/docs
 ```
@@ -595,6 +644,7 @@ players / player123
 | `/matches/new` | admin | Formulário de nova partida (com upload de .dem embutido) |
 | `/matches/:id` | público | Detalhes da partida — stats básicas por jogador |
 | `/sort` | público | Sorteio de times (Snake Draft) |
+| `/metrics` | público | Leaderboard por métrica crua (ADR, trades, dano de granada...) |
 | `/profile` | autenticado | Perfil pessoal + alterar senha |
 | `/admin` | admin | Gestão de players e partidas |
 | `/chat` | público | Chat em tempo real (WebSocket) |
@@ -611,27 +661,22 @@ players / player123
 - [ ] Verificar se `demoparser2` (lib Rust) instala corretamente no ambiente Linux do Render
 
 ### Importantes (melhoram a experiência)
-- [ ] Chat sem persistência — mensagens somem se o servidor reiniciar; considerar Redis pub/sub ou tabela no banco
-- [ ] Busca de perfil Steam ao cadastrar player manualmente no Admin (hoje precisa copiar o ID na mão)
-- [ ] `kast_percent` fixado em 50 no `demo_service.py` — cálculo real exige `parse_ticks()` que carrega todo o demo em memória
+- [x] ~~Chat sem persistência — mensagens somem se o servidor reiniciar~~ → **implementado** — tabela `chat_messages` (model `ChatMessage`); cada mensagem é persistida no commit do WS e o cliente recebe um payload `{"type":"history"}` com as últimas 50 mensagens ao conectar
+- [x] ~~Busca de perfil Steam ao cadastrar player manualmente no Admin~~ → **implementado** — `GET /api/players/steam-lookup?steam_id=` (admin only, usa `steam_service.get_steam_profile`) + botão "BUSCAR" no modal de cadastro do Admin que pré-preenche o nickname
+- [x] ~~`kast_percent` fixado em 50 no `demo_service.py`~~ → **implementado** — calculado de verdade por round (kill/assist/survived/traded), sem precisar de `parse_ticks()` (ver "Métricas Situacionais")
 
 ### Futuro
-- [ ] `disadvantage_kills`, `advantage_kills`, `eco_kills` não são calculadas no demo parser ainda (precisam de `parse_ticks`)
+- [x] ~~`disadvantage_kills`, `advantage_kills`, `eco_kills` não são calculadas no demo parser~~ → **implementado** — `demo_service.py` deriva as 3 dos eventos `player_death`/`item_purchase` já parseados, sem `parse_ticks()` (a suposição de que precisariam dele estava errada — ver "Métricas Situacionais")
 - [x] ~~`trade_denials` já É calculada em `demo_service.py`, mas não existe coluna em `PlayerMatchStats`~~ → **implementado** — coluna adicionada ao model, schema, service e router; entra no score de Duelos
 - [x] ~~`ranking_service.py` não usa `trade_denials`~~ → **implementado** — adicionado a `SOMA_METRICS` e `DUEL_METRICS`
 - [x] ~~`adr_difference` sempre 0.0 no demo parser~~ → **implementado** — calculado como `adr_player - mean_adr` após parsear todos os jogadores
 - [x] ~~`grenade_damage`/`he_enemies_hit`/`fire_enemies_hit` sem parsing por tipo de arma~~ → **implementado** — demo_service agora lê campo `weapon` do evento `player_hurt` e diferencia HE, molotov/incendiária
-- [ ] `ranking_service.py` não usa eco_kills/disadvantage_kills/advantage_kills (spec, não código) — depende de `parse_ticks`
-- [ ] Alembic — migrações incrementais quando o schema precisar evoluir
-- [ ] Integração direta com scope.gg (scraping ou API oficial se existir)
-- [ ] Aviso explícito no AddMatch quando um `player_id` resolvido pelo demo pertence a uma conta `is_active=False` (hoje o jogador some da tabela sem nenhum aviso — só o caso "sem steam_id" é avisado)
+- [x] ~~`ranking_service.py` não usa eco_kills/disadvantage_kills/advantage_kills~~ → **implementado** — métrica derivada `weighted_kills` no score Combate, ver "Passo 3" acima
+- [x] ~~Alembic — migrações incrementais quando o schema precisar evoluir~~ → **implementado** — `alembic/` configurado (`env.py` lê `DATABASE_URL` do `.env`, `target_metadata = Base.metadata`); migração baseline `8c264163dd4b` gerada e "stamped" no banco local (diff vazio = models já em sync com o schema existente). Daqui pra frente, mudança de schema = `alembic revision --autogenerate -m "..."` + `alembic upgrade head`, não mais `ALTER TABLE` manual.
+- [x] Integração direta com scope.gg → **pesquisado, não implementável**: scope.gg não tem API pública (confirmado via busca — sem documentação de API, sem endpoint oficial). Restaria só scraping, frágil e fora de escopo; não implementado por decisão.
+- [x] ~~Aviso explícito no AddMatch quando um `player_id` resolvido pelo demo pertence a uma conta `is_active=False`~~ → **implementado** — `POST /api/demo/parse` retorna `inactive_players[]`; `AddMatch.tsx` mostra um banner de aviso separado do de "sem steam_id", recomendando reativar em `/admin`
 
-> **Migração necessária se o banco já existia:**
-> ```sql
-> ALTER TABLE player_match_stats
->   ADD COLUMN IF NOT EXISTS trade_denials INTEGER NOT NULL DEFAULT 0;
-> ```
-> Se o banco foi recriado com `python seed.py` após este commit, a coluna já existe.
+> **Migração:** desde esta rodada, mudanças de schema passam por Alembic (`cd backend && alembic revision --autogenerate -m "..."` → revisar o arquivo gerado em `alembic/versions/` → `alembic upgrade head`). O banco local já tem as colunas `disadvantage_kills`, `advantage_kills`, `eco_kills` em `player_match_stats` e a tabela `chat_messages` — quem clonar o repo do zero recebe tudo via `create_all()` no startup; quem já tinha o banco rodando precisa só do `alembic upgrade head` (é um no-op se já rodou `python seed.py` recentemente, já que a baseline foi stampada refletindo esse schema).
 
 ---
 
@@ -693,8 +738,9 @@ Descoberto verificando o upload de demo: 3 jogadores tinham sido desativados no 
 `GET /api/players` filtra `is_active=True` por padrão, então mesmo com `player_id`
 corretamente resolvido pelo parse, o AddMatch não tinha linha pra marcar — o jogador
 era descartado da partida em silêncio.
-**Fix aplicado:** reativados manualmente os 3 players afetados. **Não corrigido no
-código ainda** — ver "O que falta implementar".
+**Fix aplicado:** reativados manualmente os 3 players afetados. **Fix definitivo no
+código:** `POST /api/demo/parse` agora retorna `inactive_players[]` (qualquer player
+resolvido com `is_active=False`); `AddMatch.tsx` mostra um banner de aviso dedicado.
 
 ### Bug 13 — `uvicorn --reload` não recarregava após edições durante depuração ao vivo
 Múltiplos arquivos editados em sequência enquanto o servidor de dev rodava em background
@@ -730,3 +776,51 @@ numa instalação limpa (deploy no Render, ou qualquer clone novo do repo) — q
 silenciosamente até alguém tentar rodar o backend do zero.
 **Fix:** corrigido para `demoparser2==0.41.3`, a versão de fato instalada e testada
 (inclusive contra demos reais, com extração de `steamid` e `weapon` funcionando).
+
+### Bug 17 — Suposição errada de que métricas situacionais exigiam `parse_ticks()`
+A documentação original (e o código) assumiam que `disadvantage_kills`, `advantage_kills`,
+`eco_kills` e `kast_percent` real só seriam viáveis com `parse_ticks()` — método caro que
+carrega todos os snapshots de tick do demo em memória, inviável para arquivos de até 750MB.
+Isso bloqueou a implementação das 4 métricas por uma sessão inteira de planejamento.
+**Descoberta:** todas as 4 são derivváveis só dos eventos já parseados (`player_death` com
+`team_num`/`steamid`, `item_purchase` com `cost`/`steamid`/`total_rounds_played`) — contagem
+de vivos por time e gasto por round não precisam de tick-by-tick, só de processar os eventos
+em ordem cronológica de `tick`. **Fix:** implementado em `demo_service.py` (ver "Métricas
+Situacionais"); verificado contra o `.dem` real de 302MB no root do projeto, com resultados
+plausíveis (KAST 60–92%, ratings 0.41–1.34, sem erros de parse). Lição: antes de assumir que
+uma feature precisa do caminho caro, checar se os eventos baratos já não levam ao mesmo dado.
+
+### Bug 18 — `trade_denials` perdido entre backend e frontend
+A coluna `trade_denials` foi adicionada ao model/schema do backend numa branch anterior
+(mergeada), mas nunca chegou no `client.ts` do frontend — nem na interface `PlayerStatsCreate`
+nem em `PlayerStatsInMatch`, nem como coluna em `AddMatch.tsx`. Resultado: qualquer
+`trade_denials` calculado pelo parser do demo era silenciosamente descartado antes de chegar
+no `POST /api/matches` (nunca dava erro — o campo só não existia no objeto JS enviado, e o
+schema do backend tem default 0). **Fix:** adicionado a ambas as interfaces em `client.ts` e
+à tabela de `AddMatch.tsx` (coluna "T.DENIAL"), junto com as 3 colunas novas de
+disadvantage/advantage/eco kills. Lição: ao adicionar uma coluna nova end-to-end, sempre
+conferir o frontend depois de mergear uma branch só de backend — campos descartados em
+silêncio não aparecem em nenhum teste de tipo nem erro de runtime.
+
+### Bug 19 — `kast_percent` podia passar de 100% e quebrar o POST /api/matches com 422
+`total_rounds` em `demo_service.py` era calculado só pela contagem de eventos `round_end`.
+O round final de uma partida às vezes não dispara esse evento (a demo grava até o kill
+decisivo e acaba antes do evento de fim de round chegar), então `total_rounds` ficava
+subestimado em 1 — mas os kills/assists daquele último round já tinham sido contados em
+`kast_rounds`. Resultado: `len(kast_rounds) / total_rounds * 100` passava de 100% (visto em
+produção: 105.9%), violando `kast_percent: Field(..., le=100.0)` no schema e fazendo o
+upload de demo preencher a tabela do AddMatch com valores que o backend rejeitava no salvar
+(422 silencioso — ver Bug 20). **Fix:** `total_rounds` agora é o maior entre a contagem de
+`round_end` e `(maior índice de round visto nas kills) + 1`; adicionado também um
+`min(kast, 100.0)` defensivo (KAST nunca pode matematicamente passar de 100%, então isso é
+só uma segunda camada de proteção, não uma correção do cálculo em si).
+
+### Bug 20 — Erro 422 aparecia como `[object Object],[object Object]` no AddMatch
+`api/client.ts` fazia `throw new Error(error.detail)` assumindo que `detail` é sempre uma
+string. Em erros de validação (422) do FastAPI/Pydantic, `detail` é um **array** de objetos
+(`{loc, msg, type, ...}`) — `new Error(array)` chama `.toString()` no array, que junta os
+itens com `.toString()` de cada objeto, dando `"[object Object],[object Object]"` em vez da
+mensagem real. Mascarava completamente a causa de qualquer erro de validação (incluindo o
+Bug 19 acima). **Fix:** nova função `formatErrorDetail()` em `client.ts` que trata `detail`
+como string OU array (formatando cada item como `campo: mensagem`, separados por `·`),
+usada nos dois pontos que liam `error.detail` (`request()` genérico e `demoApi.parse()`).

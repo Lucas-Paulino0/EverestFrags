@@ -151,7 +151,7 @@ export function Profile() {
                     kast={entry.kast_percent}
                     rating={entry.hltv_rating * 50}
                     openK={entry.score_duel}
-                    trade={entry.score_duel}
+                    trade={Math.min(entry.kd_ratio * 33, 100)}
                     util={entry.score_utility}
                     color="#0e7490"
                     size={160}

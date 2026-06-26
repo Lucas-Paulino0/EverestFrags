@@ -9,9 +9,10 @@ import { type RankingEntry } from "../api/client";
 interface RankCardProps {
   entry: RankingEntry;
   compact?: boolean;
+  onClick?: () => void;
 }
 
-export function RankCard({ entry, compact = false }: RankCardProps) {
+export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
   const scoreW = `${Math.round(entry.score_final)}%`;
   const combatW = `${Math.round(entry.score_combat)}%`;
   const duelW   = `${Math.round(entry.score_duel)}%`;
@@ -19,11 +20,15 @@ export function RankCard({ entry, compact = false }: RankCardProps) {
 
   if (compact) {
     return (
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        padding: "13px 18px", borderBottom: "1px solid #141b23",
-        background: "#0a0e13",
-      }}>
+      <div
+        onClick={onClick}
+        style={{
+          display: "flex", alignItems: "center", gap: 16,
+          padding: "13px 18px", borderBottom: "1px solid #141b23",
+          background: "#0a0e13",
+          cursor: onClick ? "pointer" : undefined,
+        }}
+      >
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 14, color: "#3a4757", width: 26 }}>
           {entry.rank}
         </span>
@@ -61,7 +66,7 @@ export function RankCard({ entry, compact = false }: RankCardProps) {
   }
 
   return (
-    <div style={{ border: "1px solid #172029", background: "#0e141b", padding: 16 }}>
+    <div onClick={onClick} style={{ border: "1px solid #172029", background: "#0e141b", padding: 16, cursor: onClick ? "pointer" : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 14 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 15, color: "#404e60", width: 26 }}>
           {entry.rank}

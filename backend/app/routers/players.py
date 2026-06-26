@@ -1,15 +1,17 @@
 """
 Router — jogadores
 
-GET  /api/players          → público, lista todos os jogadores ativos
-POST /api/players          → admin, cria jogador
-GET  /api/players/{id}     → público, dados de um jogador
-PATCH /api/players/{id}    → admin, atualiza campos do jogador
-GET  /api/players/{id}/stats → autenticado, stats consolidadas do jogador
+GET  /api/players                → público, lista todos os jogadores ativos
+POST /api/players                → admin, cria jogador
+GET  /api/players/steam-lookup   → admin, busca perfil público na Steam Web API
+GET  /api/players/{id}           → público, dados de um jogador
+PATCH /api/players/{id}          → admin, atualiza campos do jogador
+GET  /api/players/{id}/stats     → autenticado, stats consolidadas do jogador
 """
 
+import os
 from typing import List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,6 +19,7 @@ from app.schemas.player import PlayerCreate, PlayerUpdate, PlayerResponse, Playe
 from app.services.auth_service import get_current_player, require_admin
 from app.services.player_service import get_all_players, get_player_by_id, create_player, update_player
 from app.services.ranking_service import get_player_stats
+from app.services.steam_service import get_steam_profile
 from app.models.player import Player
 
 router = APIRouter(prefix="/api/players", tags=["players"])
@@ -36,6 +39,30 @@ def create(
 ):
     """Cria um novo jogador. Apenas admins."""
     return create_player(db, data)
+
+
+@router.get("/steam-lookup")
+async def steam_lookup(
+    steam_id: str,
+    _: Player = Depends(require_admin),
+):
+    """
+    Busca nickname + avatar de um steam_id na Steam Web API, pra pré-preencher
+    o cadastro manual de player no Admin (hoje a única forma é copiar o ID na mão).
+    Requer STEAM_API_KEY no .env. 404 se o perfil não existir ou a API não responder.
+    """
+    api_key = os.getenv("STEAM_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="STEAM_API_KEY não configurada no servidor")
+
+    profile = await get_steam_profile(steam_id.strip(), api_key)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil Steam não encontrado para esse ID")
+
+    return {
+        "nickname": profile.get("personaname"),
+        "avatar_url": profile.get("avatarfull"),
+    }
 
 
 @router.get("/{player_id}", response_model=PlayerResponse)

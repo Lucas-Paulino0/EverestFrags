@@ -58,57 +58,6 @@ input[type=range] { border-radius: 999px; }
 }
 
 /* ==========================================================================
-   Sliders — WeightConfigModal
-   Thumb circular com glow por categoria
-   ========================================================================== */
-input.ef-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  border-radius: 999px;
-  outline: none;
-  cursor: pointer;
-  border: none;
-}
-
-input.ef-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  cursor: pointer;
-}
-input.ef-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-/* Combate — teal */
-input.ef-slider--combat::-webkit-slider-thumb {
-  background: #0e7490;
-  box-shadow: 0 0 8px rgba(14, 116, 144, 0.6);
-}
-input.ef-slider--combat::-moz-range-thumb { background: #0e7490; }
-
-/* Duelos — indigo */
-input.ef-slider--duel::-webkit-slider-thumb {
-  background: #6366f1;
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
-}
-input.ef-slider--duel::-moz-range-thumb { background: #6366f1; }
-
-/* Utility — dourado */
-input.ef-slider--utility::-webkit-slider-thumb {
-  background: #e0a82e;
-  box-shadow: 0 0 8px rgba(224, 168, 46, 0.6);
-}
-input.ef-slider--utility::-moz-range-thumb { background: #e0a82e; }
-
-/* ==========================================================================
    Tipografia utilitária
    ========================================================================== */
 .font-display { font-family: 'Barlow Condensed', sans-serif; }

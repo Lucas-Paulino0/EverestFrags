@@ -57,8 +57,9 @@ class PlayerMatchStats(Base):
     Constraint UNIQUE(player_id, match_id) impede duplicatas.
 
     Métricas de SOMA (agregadas somando todas as partidas):
-        kills, deaths, assists, damage_total, opening_kills, trade_kills,
-        flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit
+        kills, deaths, assists, damage_total, opening_kills, trade_kills, trade_denials,
+        flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit,
+        disadvantage_kills, advantage_kills, eco_kills
 
     Métricas de MÉDIA (agregadas tirando média entre partidas):
         adr, adr_difference, hltv_rating, kast_percent, time_to_kill_ms
@@ -84,6 +85,11 @@ class PlayerMatchStats(Base):
     adr_difference: Mapped[float] = mapped_column(Numeric(6, 2), default=0, nullable=False)
     hltv_rating: Mapped[float] = mapped_column(Numeric(5, 3), default=0, nullable=False)
     kast_percent: Mapped[float] = mapped_column(Numeric(5, 2), default=0, nullable=False)
+    # Situacionais (Round Swing, estilo HLTV 3.0) — ajustam o peso de cada kill no
+    # score Combate: eco_kills valem menos, disadvantage_kills valem mais.
+    disadvantage_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    advantage_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    eco_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # --- DUELOS (peso 30% no score final) ---
     opening_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

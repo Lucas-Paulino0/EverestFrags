@@ -23,10 +23,49 @@ Um grupo fixo de amigos joga mixes de CS2 mas nao tinha como medir quem evoluia 
 - Upload de demo `.dem` para preenchimento automatico das stats
 - Historico paginado de partidas
 - Sorteio aleatorio equilibrado (avalia todas as combinacoes, margem 40-60%)
-- Configuracao dinamica dos pesos do score (Combate / Duelos / Utility)
 - Chat em tempo real via WebSocket
 - Perfil pessoal com stats e posicao no ranking
 - Painel admin: criar/editar players, vincular Steam ID, gerenciar partidas
+
+---
+
+## Como o Ranking funciona
+
+O ranking nao e um simples quadro de kills — ele tenta responder uma pergunta mais honesta: **quem joga melhor, consistentemente, em qualquer papel?**
+
+Para isso, cada jogador recebe um score de 0 a 100 baseado em tres categorias:
+
+**Combate** — voce mata, voce resiste, voce causa dano. K/D, ADR, HLTV Rating, KAST% e dano de granadas entram aqui. Nao basta matar muito, tem que morrer pouco tambem.
+
+**Duelos** — qualidade nos confrontos diretos. Opening kills (quem abre o round?), trade kills, trade denials e TTK (tempo medio entre kills — quanto menor, mais rapido voce finaliza). Um jogador que abre rounds consistentemente vale ouro mesmo com K/D mediano.
+
+**Utility** — flash assists, dano de HE, hits de fogo. Invisivel no placar, decisivo na partida.
+
+Cada categoria pesa **1/3** do score final. Sem favoritismo.
+
+### O score e relativo — e isso e intencional
+
+O score usa **normalizacao min-max**: o melhor jogador do grupo em cada metrica recebe 100, o pior recebe 0, e os outros ficam distribuidos no meio.
+
+Consequencia direta: **seu score pode mudar sem voce ter jogado.** Se o jogador que era o pior em kills jogar uma partida ainda pior, voce sobe — mesmo sem abrir o jogo. Parece estranho mas e matematicamente correto: sua posicao relativa no grupo mudou.
+
+### Jogador com 3 partidas vs. jogador com 5 partidas
+
+O sistema converte tudo para **taxa por partida** antes de calcular, neutralizando o vies de volume:
+
+| | 3 partidas | 5 partidas |
+|---|---|---|
+| Kills totais | 60 | 100 |
+| Kills por partida | **20** | **20** |
+| Score recebido | igual | igual |
+
+Performance igual → score igual. Quem joga mais nao leva vantagem so pelo volume — precisa manter o nivel.
+
+### O que o ranking nao captura (ainda)
+
+- **Resultado da partida** — vencer ou perder nao afeta o score, o que faz sentido para mixes onde os times mudam todo jogo.
+- **HLTV Rating** — a formula usada e uma aproximacao baseada em engenharia reversa (a oficial nao e publica). Resultados ficam proximos, mas podem divergir em condicoes extremas.
+- **Clutches e entry frags** como categorias separadas estao no radar para versoes futuras.
 
 ---
 

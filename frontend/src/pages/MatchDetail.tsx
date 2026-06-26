@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { matchesApi, type MatchDetailResponse } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { Navbar } from "../components/Navbar";
 
 export function MatchDetail() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,8 @@ export function MatchDetail() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#080808", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", padding: "32px 48px" }}>
+      <div style={{ minHeight: "100vh", background: "#070a0e", color: "#e8e8e8", fontFamily: "'Inter', sans-serif" }}>
+        <Navbar />
         <div style={{ textAlign: "center", padding: 60, fontFamily: "'JetBrains Mono', monospace", color: "#444" }}>carregando...</div>
       </div>
     );
@@ -51,11 +53,9 @@ export function MatchDetail() {
 
   if (error || !match) {
     return (
-      <div style={{ minHeight: "100vh", background: "#080808", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", padding: "32px 48px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <button onClick={() => navigate("/matches")} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0, letterSpacing: 1, marginBottom: 20 }}>
-            ← PARTIDAS
-          </button>
+      <div style={{ minHeight: "100vh", background: "#070a0e", color: "#e8e8e8", fontFamily: "'Inter', sans-serif" }}>
+        <Navbar />
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 48px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#ff5a33" }}>
             // {error || "partida não encontrada"}
           </div>
@@ -67,22 +67,20 @@ export function MatchDetail() {
   const players = [...match.players].sort((a, b) => b.hltv_rating - a.hltv_rating);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080808", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", padding: "32px 48px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "#070a0e", color: "#e8e8e8", fontFamily: "'Inter', sans-serif", paddingBottom: 32 }}>
+      <Navbar />
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 48px" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 16 }}>
           <div>
-            <button onClick={() => navigate("/matches")} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0, letterSpacing: 1 }}>
-              ← PARTIDAS
-            </button>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 32, fontWeight: 700, color: "#f4f4f4", marginTop: 6 }}>
+            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 32, fontWeight: 700, color: "#f4f4f4" }}>
               {match.map_name ?? `PARTIDA #${match.id}`}
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a5a", marginTop: 4, display: "flex", gap: 14, alignItems: "center" }}>
               <span>{match.played_at}</span>
               {match.scope_url && (
-                <a href={match.scope_url} target="_blank" rel="noreferrer" style={{ color: "#cc2200" }}>
+                <a href={match.scope_url} target="_blank" rel="noreferrer" style={{ color: "#0e7490" }}>
                   scope.gg ↗
                 </a>
               )}
@@ -148,7 +146,7 @@ export function MatchDetail() {
                       {diff > 0 ? `+${diff}` : diff}
                     </td>
                     <td style={{ padding: "10px 8px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#aaa" }}>{p.adr.toFixed(1)}</td>
-                    <td style={{ padding: "10px 8px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#cc2200" }}>{p.hltv_rating.toFixed(2)}</td>
+                    <td style={{ padding: "10px 8px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#0e7490" }}>{p.hltv_rating.toFixed(2)}</td>
                   </tr>
                 );
               })}

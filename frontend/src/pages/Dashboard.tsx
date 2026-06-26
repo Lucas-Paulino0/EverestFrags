@@ -13,16 +13,15 @@ import { rankingApi, playersApi, type RankingEntry } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { PodiumCard } from "../components/PodiumCard";
 import { RankCard } from "../components/RankCard";
-import { WeightConfigModal } from "../components/WeightConfigModal";
+import { PlayerDetailModal } from "../components/PlayerDetailModal";
 import { Navbar } from "../components/Navbar";
 
 export function Dashboard() {
-  const { player, isAdmin, logout } = useAuth();
+  const { player, logout } = useAuth();
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [totalPlayers, setTotalPlayers] = useState(0);
-  const [weights, setWeights] = useState({ combat: 50, duel: 30, utility: 20 });
-  const [showWeights, setShowWeights] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedEntry, setSelectedEntry] = useState<RankingEntry | null>(null);
 
   async function loadData() {
     try {
@@ -36,32 +35,14 @@ export function Dashboard() {
     }
   }
 
-  async function loadWeights() {
-    try {
-      const config = await rankingApi.getConfig();
-      setWeights({
-        combat:  Math.round(config.weight_combat * 100),
-        duel:    Math.round(config.weight_duel * 100),
-        utility: Math.round(config.weight_utility * 100),
-      });
-    } catch { /* viewer não tem acesso — mantém padrão 50/30/20 */ }
-  }
-
   useEffect(() => {
     loadData();
-    if (isAdmin) loadWeights();
-  }, [isAdmin]);
+  }, []);
 
   const podium  = ranking.slice(0, 3);
   const midGrid = ranking.slice(3, 11);
   const tail    = ranking.slice(11);
   const totalMatches = ranking.length > 0 ? Math.max(...ranking.map(r => r.total_matches)) : 0;
-
-  const weightChips = [
-    { val: `${weights.combat}%`,  label: "COMBATE", color: "#0e7490", bright: "#22d3ee", border: "rgba(14,116,144,.3)",  bg: "rgba(14,116,144,.08)" },
-    { val: `${weights.duel}%`,    label: "DUELOS",  color: "#6366f1", bright: "#818cf8", border: "rgba(99,102,241,.3)", bg: "rgba(99,102,241,.08)" },
-    { val: `${weights.utility}%`, label: "UTILITY", color: "#e0a82e", bright: "#e8b948", border: "rgba(224,168,46,.3)", bg: "rgba(224,168,46,.08)" },
-  ];
 
   return (
     <div style={{ minHeight: "100vh", background: "#070a0e", color: "#dde6f0", fontFamily: "'Inter', sans-serif", paddingBottom: 64 }}>
@@ -111,26 +92,6 @@ export function Dashboard() {
               </div>
             ))}
 
-            <div style={{ width: 1, height: 42, background: "#1e2a36", margin: "0 4px" }} />
-
-            {weightChips.map(w => (
-              <div key={w.label} style={{ display: "flex", alignItems: "center", gap: 7, border: `1px solid ${w.border}`, background: w.bg, padding: "9px 13px" }}>
-                <span style={{ width: 7, height: 7, background: w.color, borderRadius: "50%" }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 700, color: w.bright }}>{w.val}</span>
-                <span style={{ fontSize: 9.5, letterSpacing: "1.5px", color: "#6a7a8d" }}>{w.label}</span>
-              </div>
-            ))}
-
-            {isAdmin && (
-              <button
-                onClick={() => setShowWeights(true)}
-                style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid rgba(14,116,144,.35)", background: "rgba(14,116,144,.1)", padding: "9px 13px", cursor: "pointer", color: "#22d3ee", marginLeft: 2 }}
-              >
-                <span style={{ width: 8, height: 8, background: "#0e7490", transform: "rotate(45deg)", flexShrink: 0 }} />
-                <span style={{ fontSize: 9.5, letterSpacing: "1.5px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>CONFIG. PESOS</span>
-              </button>
-            )}
-
             <div style={{ width: 1, height: 42, background: "#1e2a36", margin: "0 2px" }} />
 
             {player && (
@@ -176,13 +137,16 @@ export function Dashboard() {
         {!loading && ranking.length > 0 && (
           <>
             {/* Seção pódio */}
-            <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "34px 0 22px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "34px 0 8px" }}>
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "3px", color: "#5d6d80" }}>PÓDIO</span>
               <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg,#1e2a36,transparent)" }} />
             </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#2e3e50", letterSpacing: "0.5px", marginBottom: 18 }}>
+              // score relativo ao grupo — atualiza a cada nova partida registrada
+            </div>
             {/* 3 colunas com o centro levemente maior (1º lugar destacado) */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.08fr 1fr", gap: 18, alignItems: "end" }}>
-              {podium.map(e => <PodiumCard key={e.player_id} entry={e} />)}
+              {podium.map(e => <PodiumCard key={e.player_id} entry={e} onClick={() => setSelectedEntry(e)} />)}
             </div>
 
             {/* Seção classificação (4–11) */}
@@ -193,7 +157,7 @@ export function Dashboard() {
                   <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg,#1e2a36,transparent)" }} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-                  {midGrid.map(e => <RankCard key={e.player_id} entry={e} />)}
+                  {midGrid.map(e => <RankCard key={e.player_id} entry={e} onClick={() => setSelectedEntry(e)} />)}
                 </div>
               </>
             )}
@@ -201,7 +165,7 @@ export function Dashboard() {
             {/* Lista compacta (12+) */}
             {tail.length > 0 && (
               <div style={{ border: "1px solid #172029", background: "#0a0e13", marginTop: 14 }}>
-                {tail.map(e => <RankCard key={e.player_id} entry={e} compact />)}
+                {tail.map(e => <RankCard key={e.player_id} entry={e} compact onClick={() => setSelectedEntry(e)} />)}
               </div>
             )}
 
@@ -209,9 +173,9 @@ export function Dashboard() {
             <footer style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 34, paddingTop: 20, borderTop: "1px solid #151d26" }}>
               <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
                 {[
-                  { color: "#0e7490", label: "Combate 50%", detail: "kills, dano, ADR, rating, KAST" },
-                  { color: "#6366f1", label: "Duelos 30%",  detail: "opening, trades, TTK" },
-                  { color: "#e0a82e", label: "Utility 20%", detail: "flashes, HE, incendiária" },
+                  { color: "#0e7490", label: "Combate 1/3", detail: "kills, dano, ADR, rating, KAST" },
+                  { color: "#6366f1", label: "Duelos 1/3",  detail: "opening, trades, TTK" },
+                  { color: "#e0a82e", label: "Utility 1/3", detail: "flashes, HE, incendiária" },
                 ].map(l => (
                   <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 9 }}>
                     <span style={{ width: 10, height: 10, background: l.color }} />
@@ -222,21 +186,15 @@ export function Dashboard() {
                 ))}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "1.5px", color: "#334155" }}>
-                SCORE NORMALIZADO MIN-MAX · GRUPO DE {totalPlayers}
+                SCORE NORMALIZADO MIN-MAX · GRUPO DE {totalPlayers} · CLIQUE EM UM PLAYER PRO DETALHE
               </div>
             </footer>
           </>
         )}
       </main>
 
-      {showWeights && (
-        <WeightConfigModal
-          initialCombat={weights.combat / 100}
-          initialDuel={weights.duel / 100}
-          initialUtility={weights.utility / 100}
-          onClose={() => setShowWeights(false)}
-          onSaved={() => { loadData(); if (isAdmin) loadWeights(); }}
-        />
+      {selectedEntry && (
+        <PlayerDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
       )}
     </div>
   );

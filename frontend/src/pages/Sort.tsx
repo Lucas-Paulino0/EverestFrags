@@ -109,7 +109,6 @@ export function Sort() {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
           <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "3px", color: "#5d6d80" }}>SORTEAR TIMES</span>
           <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg,#1e2a36,transparent)" }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#2a3a4a", letterSpacing: "1px" }}>// snake draft</span>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 32, alignItems: "start" }}>
@@ -233,6 +232,16 @@ export function Sort() {
                     {copied ? "COPIADO!" : "COPIAR"}
                   </button>
                 </div>
+
+                {result.algorithm === "best_effort" && (
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5,
+                    color: "#e0a82e", padding: "10px 14px", marginBottom: 14,
+                    background: "rgba(224,168,46,.06)", border: "1px solid rgba(224,168,46,.2)",
+                  }}>
+                    ⚠ Nenhuma distribuição equilibrada foi encontrada. Os times foram formados com a menor diferença possível, mas podem estar desbalanceados.
+                  </div>
+                )}
 
                 {/* Cards de times */}
                 {result.teams.map((team, ti) => (

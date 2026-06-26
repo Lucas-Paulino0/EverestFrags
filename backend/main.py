@@ -5,10 +5,14 @@ Responsabilidades:
   - Cria a instância FastAPI com metadados (título, versão, docs)
   - Configura CORS para aceitar requisições do frontend (localhost:5173 em dev)
   - Registra todos os routers
-  - Cria as tabelas no banco ao iniciar (create_all) — sem Alembic
+  - Cria as tabelas no banco ao iniciar (create_all) — fallback pra ambiente novo
 
-NOTA: create_all() cria as tabelas se não existirem. Não altera tabelas existentes.
-Para alterações de schema em produção, usar Alembic migrations.
+NOTA: create_all() cria as tabelas se não existirem; não altera tabelas já existentes
+(é um no-op seguro depois que o schema já está em sync, como hoje). O projeto agora
+usa Alembic (alembic/) pra mudanças de schema — gerar revisão nova com
+`alembic revision --autogenerate -m "..."` e aplicar com `alembic upgrade head` em vez
+de ALTER TABLE manual. A migração baseline (8c264163dd4b) já está "stamped" no banco
+local, refletindo o schema atual sem alterá-lo.
 
 Rotas públicas (sem token):
   GET  /api/ranking
@@ -23,11 +27,11 @@ Rotas autenticadas (qualquer player logado):
 
 Rotas de admin:
   POST /api/players
+  GET  /api/players/steam-lookup
   PATCH /api/players/{id}
   POST /api/matches
   DELETE /api/matches/{id}
-  GET  /api/ranking/config
-  PUT  /api/ranking/config
+  POST /api/demo/parse
 """
 
 from fastapi import FastAPI

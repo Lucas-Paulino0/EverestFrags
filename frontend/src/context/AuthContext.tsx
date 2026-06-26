@@ -26,19 +26,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [player, setPlayer] = useState<PlayerPublic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Ao montar, valida o token salvo no localStorage
+  // Ao montar, valida o token com o servidor antes de considerar o usuário autenticado.
+  // Usa fetch direto (não authApi.me()) para evitar o redirect automático do client.ts
+  // em caso de 401 — quem redireciona é o ProtectedRoute, não o contexto.
   useEffect(() => {
     const token = localStorage.getItem("ef_token");
-    const savedPlayer = localStorage.getItem("ef_player");
-    if (token && savedPlayer) {
-      try {
-        setPlayer(JSON.parse(savedPlayer));
-      } catch {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.ok) return res.json() as Promise<PlayerPublic>;
+        return Promise.reject(new Error("unauthorized"));
+      })
+      .then((data: PlayerPublic) => {
+        localStorage.setItem("ef_player", JSON.stringify(data));
+        setPlayer(data);
+      })
+      .catch(() => {
         localStorage.removeItem("ef_token");
         localStorage.removeItem("ef_player");
-      }
-    }
-    setIsLoading(false);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   async function login(nickname: string, password: string) {

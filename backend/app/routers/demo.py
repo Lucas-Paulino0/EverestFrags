@@ -3,10 +3,12 @@ Router — upload e parse de arquivos .dem do CS2
 
 POST /api/demo/parse  → recebe .dem, retorna stats dos jogadores
   - Requer autenticação (admin)
-  - Retorna: map_name, total_rounds, players[], created_players[], errors[]
+  - Retorna: map_name, total_rounds, players[], created_players[], inactive_players[], errors[]
   - Cada player do demo é casado com sua conta via steam_id; se não existir
     conta para aquele steam_id, ela é criada automaticamente (role viewer)
   - Cada player no retorno já vem com player_id resolvido — pronto para AddMatch
+  - Se a conta resolvida estiver com is_active=False, ela entra em inactive_players[]
+    (o AddMatch não consegue selecioná-la, já que GET /api/players só lista ativos)
 """
 
 import logging
@@ -52,6 +54,7 @@ async def parse_demo(
 
         # Casa cada player do demo com sua conta via steam_id, criando quando necessário.
         created_players = []
+        inactive_players = []
         for p in result["players"]:
             steam_id = p.get("steam_id")
             if not steam_id:
@@ -62,7 +65,10 @@ async def parse_demo(
             p["nickname"] = player.nickname  # nickname canônico do sistema
             if created:
                 created_players.append({"id": player.id, "nickname": player.nickname, "steam_id": steam_id})
+            elif not player.is_active:
+                inactive_players.append({"id": player.id, "nickname": player.nickname, "steam_id": steam_id})
         result["created_players"] = created_players
+        result["inactive_players"] = inactive_players
 
         return result
     except RuntimeError as e:

@@ -11,7 +11,7 @@ interface RadarProps {
   kast: number;      // score combate → representa KAST
   rating: number;    // score combate → representa Rating
   openK: number;     // score duelo → Opening Kills
-  trade: number;     // score duelo → Trade Kills
+  trade: number;     // k/d normalizado: kd_ratio × 33 cap 100 (0.5→16, 1.0→33, 2.0→66)
   util: number;      // score utility
   color?: string;
   size?: number;
