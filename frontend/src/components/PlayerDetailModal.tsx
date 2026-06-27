@@ -166,7 +166,7 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.74)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 24, overflowY: "auto" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ position: "relative", width: 760, maxWidth: "100%", border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "30px 32px 28px", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ position: "relative", width: 980, maxWidth: "100%", border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "30px 32px 28px", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg,#0e7490,#6366f1,#e0a82e)" }} />
 
         <button
@@ -271,64 +271,69 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
           )}
         </div>
 
-        {/* Métricas cruas, por categoria — tabela (nome | valor | vs média do grupo) */}
-        {groups.map(g => (
-          <div key={g.label} style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
-              <span style={{ width: 9, height: 9, background: g.color, flexShrink: 0 }} />
-              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "2px", color: "#aebccd" }}>
-                {g.label}
-              </span>
-            </div>
-            <div style={{ border: "1px solid #1a222c" }}>
-              {g.stats.map((s, i) => {
-                // Delta absoluto vs a média do grupo (não percentual): métricas como
-                // adr_difference já são uma diferença em si, com média do grupo perto
-                // de zero por construção — uma % em cima disso explode (ex: 134900%).
-                const avg = groupAverage(group, s.key);
-                const raw = numOf(entry, s.key);
-                const diff = raw - avg;
-                const showDelta = Math.abs(diff) >= 0.05;
-                // Seta = direção factual (valor acima/abaixo da média). Cor = julgamento
-                // de "bom/neutro", invertido pra deaths/TTK (onde menor é melhor).
-                const isGood = INVERTED_KEYS.has(s.key) ? diff < 0 : diff > 0;
-                return (
-                  <div
-                    key={s.label}
-                    style={{
-                      display: "grid", gridTemplateColumns: "1fr auto 150px", gap: 14, alignItems: "center",
-                      padding: "7px 12px", background: i % 2 === 0 ? "#0c1015" : "#0a0d12",
-                      borderBottom: i < g.stats.length - 1 ? "1px solid #161e27" : "none",
-                    }}
-                  >
-                    <div style={{ fontSize: 10.5, letterSpacing: "0.5px", color: "#8a98a8" }}>{s.label}</div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#dde6f0", textAlign: "right" }}>
-                      {s.value}
-                    </div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textAlign: "right", color: showDelta ? (isGood ? "#2dd4bf" : "#94a3b8") : "#2a3540" }}>
-                      {showDelta ? `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(1)} (méd ${avg.toFixed(1)})` : "— na média"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Glossário — colapsável, sem precisar de estado novo (<details> nativo) */}
-        <details style={{ marginTop: 4, border: "1px solid #1a222c", background: "#0c1015" }}>
-          <summary style={{ cursor: "pointer", padding: "10px 14px", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "2px", color: "#5d6d80" }}>
-            GLOSSÁRIO — O QUE SIGNIFICA CADA SIGLA
-          </summary>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px 18px", padding: "4px 14px 14px" }}>
-            {GLOSSARY.map(item => (
-              <div key={item.label} style={{ fontSize: 10.5, lineHeight: 1.5 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#aebccd", fontWeight: 700 }}>{item.label}</span>
-                <span style={{ color: "#5d6d80" }}> — {item.desc}</span>
+        {/* Métricas cruas (tabela, à esquerda) + glossário (ao lado, sticky) —
+            flex com wrap: em telas estreitas o glossário desce pra baixo,
+            mesmo padrão responsivo já usado no radar+barras acima. */}
+        <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: "2 1 420px", minWidth: 320 }}>
+            {groups.map(g => (
+              <div key={g.label} style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
+                  <span style={{ width: 9, height: 9, background: g.color, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "2px", color: "#aebccd" }}>
+                    {g.label}
+                  </span>
+                </div>
+                <div style={{ border: "1px solid #1a222c" }}>
+                  {g.stats.map((s, i) => {
+                    // Delta absoluto vs a média do grupo (não percentual): métricas como
+                    // adr_difference já são uma diferença em si, com média do grupo perto
+                    // de zero por construção — uma % em cima disso explode (ex: 134900%).
+                    const avg = groupAverage(group, s.key);
+                    const raw = numOf(entry, s.key);
+                    const diff = raw - avg;
+                    const showDelta = Math.abs(diff) >= 0.05;
+                    // Seta = direção factual (valor acima/abaixo da média). Cor = julgamento
+                    // de "bom/neutro", invertido pra deaths/TTK (onde menor é melhor).
+                    const isGood = INVERTED_KEYS.has(s.key) ? diff < 0 : diff > 0;
+                    return (
+                      <div
+                        key={s.label}
+                        style={{
+                          display: "grid", gridTemplateColumns: "1fr 56px auto", gap: 10, alignItems: "center",
+                          padding: "7px 12px", background: i % 2 === 0 ? "#0c1015" : "#0a0d12",
+                          borderBottom: i < g.stats.length - 1 ? "1px solid #161e27" : "none",
+                        }}
+                      >
+                        <div style={{ fontSize: 10.5, letterSpacing: "0.5px", color: "#8a98a8" }}>{s.label}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textAlign: "right", color: showDelta ? (isGood ? "#2dd4bf" : "#94a3b8") : "#2a3540" }}>
+                          {showDelta ? `${diff > 0 ? "▲+" : "▼"}${diff.toFixed(1)}` : "—"}
+                        </div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#dde6f0", textAlign: "right" }}>
+                          {s.value}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
-        </details>
+
+          <div style={{ flex: "1 1 230px", minWidth: 220, position: "sticky", top: 0, border: "1px solid #1a222c", background: "#0c1015", padding: "14px" }}>
+            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "2px", color: "#5d6d80", marginBottom: 10 }}>
+              GLOSSÁRIO
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {GLOSSARY.map(item => (
+                <div key={item.label} style={{ fontSize: 10.5, lineHeight: 1.5 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#aebccd", fontWeight: 700 }}>{item.label}</span>
+                  <span style={{ color: "#5d6d80" }}> — {item.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
