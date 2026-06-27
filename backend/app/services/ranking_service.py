@@ -17,7 +17,7 @@ alguém, e não se move sozinha conforme mais dados entram.
 
 Métricas de SOMA:
   kills, deaths, assists, damage_total, opening_kills, trade_kills, trade_denials,
-  flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit,
+  flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit, fire_damage,
   disadvantage_kills, advantage_kills, eco_kills
 
 Métricas de MÉDIA:
@@ -53,7 +53,7 @@ WEIGHT_UTILITY = 0.34
 SOMA_METRICS = [
     "kills", "deaths", "assists", "damage_total",
     "opening_kills", "trade_kills", "trade_denials",
-    "flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit",
+    "flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit", "fire_damage",
     "disadvantage_kills", "advantage_kills", "eco_kills",
 ]
 
@@ -72,7 +72,7 @@ COMBAT_METRICS = [
     "adr", "adr_difference", "hltv_rating", "kast_percent", "grenade_damage",
 ]
 DUEL_METRICS = ["opening_kills", "trade_kills", "trade_denials", "time_to_kill_ms"]
-UTILITY_METRICS = ["flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit"]
+UTILITY_METRICS = ["flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit", "fire_damage"]
 
 
 def _normalize(value: float, min_val: float, max_val: float, inverted: bool = False) -> float:
@@ -208,6 +208,7 @@ def get_ranking(db: Session) -> List[RankingEntry]:
                 grenade_damage=p["grenade_damage"],
                 he_enemies_hit=p["he_enemies_hit"],
                 fire_enemies_hit=p["fire_enemies_hit"],
+                fire_damage=p["fire_damage"],
                 disadvantage_kills=p["disadvantage_kills"],
                 advantage_kills=p["advantage_kills"],
                 eco_kills=p["eco_kills"],

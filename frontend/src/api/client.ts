@@ -128,6 +128,7 @@ export interface RankingEntry {
   grenade_damage: number;
   he_enemies_hit: number;
   fire_enemies_hit: number;
+  fire_damage: number;
   disadvantage_kills: number;
   advantage_kills: number;
   eco_kills: number;
@@ -217,6 +218,7 @@ export interface PlayerStatsCreate {
   grenade_damage?: number;
   he_enemies_hit?: number;
   fire_enemies_hit?: number;
+  fire_damage?: number;
 }
 
 export interface MatchCreate {
@@ -267,6 +269,7 @@ export interface PlayerStatsInMatch {
   grenade_damage: number;
   he_enemies_hit: number;
   fire_enemies_hit: number;
+  fire_damage: number;
 }
 
 export interface MatchDetailResponse {
@@ -346,6 +349,7 @@ export interface DemoPlayerStat {
   grenade_damage: number;
   he_enemies_hit: number;
   fire_enemies_hit: number;
+  fire_damage: number;
   disadvantage_kills: number;
   advantage_kills: number;
   eco_kills: number;

@@ -149,6 +149,7 @@ player_match_stats
   time_to_kill_ms                     created_at
   flash_assists, grenade_damage
   he_enemies_hit, fire_enemies_hit
+  fire_damage
   -- situacionais (Round Swing) --
   disadvantage_kills, advantage_kills
   eco_kills
@@ -240,7 +241,7 @@ Antes de calcular o score, as métricas são agregadas ao longo de TODAS as part
 | damage_total | hltv_rating, kast_percent |
 | opening_kills, trade_kills, trade_denials | time_to_kill_ms |
 | flash_assists, grenade_damage | |
-| he_enemies_hit, fire_enemies_hit | |
+| he_enemies_hit, fire_enemies_hit, fire_damage | |
 | disadvantage_kills, advantage_kills, eco_kills | |
 
 ### Passo 2 — Normalização min-max (0 a 100)
@@ -307,7 +308,8 @@ Se todos os jogadores têm o mesmo valor numa métrica → score = 50 para todos
 | flash_assists | cegou inimigo que foi morto em seguida |
 | grenade_damage | dano de HE |
 | he_enemies_hit | cobertura de área |
-| fire_enemies_hit | molotov/incendiária |
+| fire_enemies_hit | nº de inimigos acertados por molotov/incendiária |
+| fire_damage | dano somado de molotov/incendiária |
 
 ### Passo 4 — Score final ponderado
 
@@ -883,3 +885,26 @@ Além disso, as 3 primeiras páginas não tinham `<Navbar />` — a navegação 
 nessas rotas. **Fix:** paleta migrada para `#070a0e`/`#0e7490` em todos os 4 arquivos;
 `Navbar` importada e adicionada em Matches, MatchDetail e AddMatch; botões "← voltar"
 removidos (redundantes com a Navbar). CLAUDE.md atualizado para refletir a paleta correta.
+
+### Bug 24 — Partidas de teste com `flash_assists` de uma versão antiga do parser
+Após o fix do Bug "flash assists reais" (commit `c433946`), 5 partidas de teste já
+cadastradas no banco (criadas enquanto o backend ainda rodava código anterior a esse
+fix) continuaram com `flash_assists` inflado — contagem de qualquer cegada em inimigo,
+sem checar se gerou kill. Reparsear o mesmo `.dem` com o código atual deu valores bem
+menores e plausíveis (ex: 1-5 por partida, contra 17-27 salvos). **Causa raiz:** corrigir
+o parser não recalcula dados que já estão no banco — só afeta uploads novos. **Fix
+aplicado:** as 5 partidas de teste foram apagadas e o `.dem` real foi re-processado pelo
+parser atual. **Lição:** ao corrigir uma métrica calculada no parser, qualquer partida já
+salva com a versão antiga fica com dado divergente até ser re-processada manualmente —
+não existe (ainda) um script de "recalcular partidas existentes a partir do demo
+original", porque o `.dem` não é persistido (é descartado logo após o parse, por design).
+
+### Bug 25 — `fire_enemies_hit` só contava acertos, não havia dano de molotov
+O parser diferenciava dano de HE (`grenade_damage`) mas pra fogo (molotov/incendiária)
+só contava quantos inimigos foram acertados (`fire_enemies_hit`), sem somar o dano real
+causado — não tinha como responder "quanto dano de molotov esse jogador causou".
+**Fix:** nova coluna `fire_damage` (migration Alembic `00d948669318`) somando `dmg_health`
+de cada `player_hurt` com `weapon` de fogo, em paralelo ao `fire_enemies_hit` (contagem
+continua existindo). Adicionado a `UTILITY_METRICS` no ranking (mesmo peso que as
+demais métricas de utility) e exposto no modal de detalhe, em `/metrics` e no
+formulário de `AddMatch`.

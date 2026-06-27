@@ -15,7 +15,7 @@ type MetricKey =
   | "kills" | "deaths" | "assists" | "damage_total" | "adr" | "adr_difference"
   | "hltv_rating" | "kast_percent" | "disadvantage_kills" | "advantage_kills" | "eco_kills"
   | "opening_kills" | "trade_kills" | "trade_denials" | "time_to_kill_ms"
-  | "flash_assists" | "grenade_damage" | "he_enemies_hit" | "fire_enemies_hit";
+  | "flash_assists" | "grenade_damage" | "he_enemies_hit" | "fire_enemies_hit" | "fire_damage";
 
 type Category = "combat" | "duel" | "utility";
 
@@ -50,6 +50,7 @@ const METRICS: MetricDef[] = [
   { key: "grenade_damage",      label: "DANO GRANADA",   category: "utility", format: v => String(v) },
   { key: "he_enemies_hit",      label: "HE HIT",         category: "utility", format: v => String(v) },
   { key: "fire_enemies_hit",    label: "FIRE HIT",       category: "utility", format: v => String(v) },
+  { key: "fire_damage",         label: "DANO MOLOTOV",   category: "utility", format: v => String(v) },
 ];
 
 export function Metrics() {

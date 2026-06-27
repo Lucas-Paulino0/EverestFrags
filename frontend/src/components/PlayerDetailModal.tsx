@@ -60,6 +60,7 @@ export function PlayerDetailModal({ entry, onClose }: PlayerDetailModalProps) {
         { label: "DANO GRANADA", value: String(entry.grenade_damage) },
         { label: "HE HIT", value: String(entry.he_enemies_hit) },
         { label: "FIRE HIT", value: String(entry.fire_enemies_hit) },
+        { label: "DANO MOLOTOV", value: String(entry.fire_damage) },
       ],
     },
   ];

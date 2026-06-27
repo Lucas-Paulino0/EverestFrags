@@ -347,6 +347,7 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
                 stats[atk]["he_enemies_hit"] += 1
             elif "inferno" in weapon or "molotov" in weapon or "incgrenade" in weapon:
                 stats[atk]["fire_enemies_hit"] += 1
+                stats[atk]["fire_damage"] += dmg
     del hurt
 
     for name, dmg in dmg_totals.items():
@@ -420,6 +421,7 @@ def _empty(nickname: str, steam_id: str) -> dict:
         "grenade_damage":    0,
         "he_enemies_hit":    0,
         "fire_enemies_hit":  0,
+        "fire_damage":       0,
         "disadvantage_kills":0,
         "advantage_kills":   0,
         "eco_kills":         0,

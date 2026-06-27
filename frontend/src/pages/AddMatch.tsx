@@ -39,6 +39,7 @@ const STAT_COLS: { key: keyof PlayerStatsCreate; label: string; min: number; max
   { key: "grenade_damage", label: "NADE DMG", min: 0, max: 500, step: 1 },
   { key: "he_enemies_hit", label: "HE HIT", min: 0, max: 20, step: 1 },
   { key: "fire_enemies_hit", label: "FIRE HIT", min: 0, max: 20, step: 1 },
+  { key: "fire_damage", label: "FIRE DMG", min: 0, max: 500, step: 1 },
 ];
 
 function emptyRow(playerId: number, selected = false): StatRow {
@@ -48,7 +49,7 @@ function emptyRow(playerId: number, selected = false): StatRow {
     adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
     disadvantage_kills: 0, advantage_kills: 0, eco_kills: 0,
     opening_kills: 0, trade_kills: 0, trade_denials: 0, time_to_kill_ms: 0,
-    flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0,
+    flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0, fire_damage: 0,
   };
 }
 
@@ -84,6 +85,7 @@ function buildRows(ps: PlayerResponse[], demoPlayers?: DemoPlayerStat[]): StatRo
       grenade_damage: match.grenade_damage ?? 0,
       he_enemies_hit: match.he_enemies_hit ?? 0,
       fire_enemies_hit: match.fire_enemies_hit ?? 0,
+      fire_damage: match.fire_damage ?? 0,
     };
   });
 }

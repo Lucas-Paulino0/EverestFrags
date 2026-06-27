@@ -103,6 +103,7 @@ class PlayerMatchStats(Base):
     grenade_damage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     he_enemies_hit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fire_enemies_hit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fire_damage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     match: Mapped["Match"] = relationship("Match", back_populates="player_stats")
     player: Mapped["Player"] = relationship("Player", back_populates="stats")  # noqa: F821

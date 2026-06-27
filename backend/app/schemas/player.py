@@ -81,6 +81,7 @@ class PlayerStatsResponse(BaseModel):
     grenade_damage: int = 0
     he_enemies_hit: int = 0
     fire_enemies_hit: int = 0
+    fire_damage: int = 0
 
     # Métricas de MÉDIA
     adr: float = 0.0

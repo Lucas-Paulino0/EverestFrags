@@ -44,6 +44,7 @@ class PlayerStatsCreate(BaseModel):
     grenade_damage: int = Field(0, ge=0)
     he_enemies_hit: int = Field(0, ge=0)
     fire_enemies_hit: int = Field(0, ge=0)
+    fire_damage: int = Field(0, ge=0)
 
 
 class PlayerStatsInMatch(BaseModel):
@@ -71,6 +72,7 @@ class PlayerStatsInMatch(BaseModel):
     grenade_damage: int
     he_enemies_hit: int
     fire_enemies_hit: int
+    fire_damage: int
 
     model_config = {"from_attributes": True}
 

@@ -35,6 +35,7 @@ class RankingEntry(BaseModel):
     grenade_damage: int = 0
     he_enemies_hit: int = 0
     fire_enemies_hit: int = 0
+    fire_damage: int = 0
     disadvantage_kills: int = 0
     advantage_kills: int = 0
     eco_kills: int = 0
