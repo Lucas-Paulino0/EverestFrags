@@ -7,6 +7,7 @@ GET  /api/players/steam-lookup   → admin, busca perfil público na Steam Web A
 GET  /api/players/{id}           → público, dados de um jogador
 PATCH /api/players/{id}          → admin, atualiza campos do jogador
 GET  /api/players/{id}/stats     → autenticado, stats consolidadas do jogador
+GET  /api/players/{id}/vs/{id2}  → público, confronto direto entre 2 jogadores
 """
 
 import os
@@ -16,9 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.player import PlayerCreate, PlayerUpdate, PlayerResponse, PlayerStatsResponse
+from app.schemas.match import HeadToHeadResponse
 from app.services.auth_service import get_current_player, require_admin
 from app.services.player_service import get_all_players, get_player_by_id, create_player, update_player
 from app.services.ranking_service import get_player_stats
+from app.services.match_service import get_head_to_head
 from app.services.steam_service import get_steam_profile
 from app.models.player import Player
 
@@ -101,3 +104,13 @@ def player_stats(
             avatar_initials=player.avatar_initials,
         )
     return stats
+
+
+@router.get("/{player_id}/vs/{opponent_id}", response_model=HeadToHeadResponse)
+def head_to_head(player_id: int, opponent_id: int, db: Session = Depends(get_db)):
+    """
+    Confronto direto entre 2 jogadores, somado em todas as partidas — quantas vezes
+    cada um matou e flashou (com kill em seguida) o outro. Só conta partidas
+    processadas via upload de demo depois desta feature (ver CLAUDE.md > Futuro).
+    """
+    return get_head_to_head(db, player_id, opponent_id)

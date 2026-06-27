@@ -77,6 +77,15 @@ class PlayerStatsInMatch(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MatchupCreate(BaseModel):
+    """Confronto direto (player x player) dentro do corpo do POST /api/matches — opcional."""
+
+    player_id: int
+    opponent_id: int
+    kills: int = Field(0, ge=0)
+    flash_assists: int = Field(0, ge=0)
+
+
 class MatchCreate(BaseModel):
     """Corpo do POST /api/matches. Requer ao menos 1 jogador."""
 
@@ -86,6 +95,9 @@ class MatchCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=500)
     # Lista de jogadores com suas stats — mínimo 1
     players: List[PlayerStatsCreate] = Field(..., min_length=1)
+    # Confrontos diretos — opcional, só vem preenchido quando a partida é
+    # criada a partir de um upload de demo (entrada manual não tem essa info)
+    matchups: List[MatchupCreate] = Field(default_factory=list)
 
 
 class MatchResponse(BaseModel):
@@ -123,3 +135,17 @@ class PaginatedMatchResponse(BaseModel):
     page: int
     limit: int
     items: List[MatchResponse]
+
+
+class HeadToHeadResponse(BaseModel):
+    """Confronto direto agregado entre 2 players, somado em todas as partidas."""
+
+    player_id: int
+    player_nickname: str
+    opponent_id: int
+    opponent_nickname: str
+    matches_together: int
+    player_kills: int       # vezes que player matou opponent
+    opponent_kills: int     # vezes que opponent matou player (= mortes do player pro opponent)
+    player_flash_assists: int
+    opponent_flash_assists: int

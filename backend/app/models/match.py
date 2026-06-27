@@ -47,6 +47,11 @@ class Match(Base):
         "PlayerMatchStats", back_populates="match", cascade="all, delete-orphan"
     )
 
+    # Confrontos diretos (player x player) nesta partida
+    vs_stats: Mapped[List["PlayerVsPlayerStats"]] = relationship(
+        "PlayerVsPlayerStats", back_populates="match", cascade="all, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"<Match id={self.id} map={self.map_name!r} played_at={self.played_at}>"
 
@@ -110,3 +115,43 @@ class PlayerMatchStats(Base):
 
     def __repr__(self) -> str:
         return f"<PlayerMatchStats player_id={self.player_id} match_id={self.match_id} kills={self.kills}>"
+
+
+class PlayerVsPlayerStats(Base):
+    """
+    Confronto direto entre 2 jogadores numa partida específica — uma linha por
+    direção (player_id agiu sobre opponent_id), não por par não-ordenado.
+    Ex: Fresh matou Alana 3x → 1 linha (player_id=Fresh, opponent_id=Alana, kills=3).
+    A "morte" de Alana pra Fresh é só a linha inversa (player_id=Alana,
+    opponent_id=Fresh) — não duplicamos a métrica em outro campo.
+
+    Só calculável a partir do .dem (precisa de attacker+victim por evento), e só
+    pras partidas processadas pelo parser depois desta feature — não retroativo
+    pras partidas já cadastradas, já que o .dem é descartado após o parse (ver
+    demo_service.py). Cobre só kills e flash_assists por enquanto; dano de
+    HE/molotov por vítima específica fica para depois — ver CLAUDE.md > Futuro.
+    """
+
+    __tablename__ = "player_vs_player_stats"
+    __table_args__ = (UniqueConstraint("match_id", "player_id", "opponent_id", name="uq_match_player_opponent"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    match_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("matches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    player_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    opponent_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    flash_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="vs_stats")
+    player: Mapped["Player"] = relationship("Player", foreign_keys=[player_id])  # noqa: F821
+    opponent: Mapped["Player"] = relationship("Player", foreign_keys=[opponent_id])  # noqa: F821
+
+    def __repr__(self) -> str:
+        return f"<PlayerVsPlayerStats match_id={self.match_id} player_id={self.player_id} opponent_id={self.opponent_id} kills={self.kills}>"

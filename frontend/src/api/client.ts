@@ -221,12 +221,20 @@ export interface PlayerStatsCreate {
   fire_damage?: number;
 }
 
+export interface MatchupCreate {
+  player_id: number;
+  opponent_id: number;
+  kills?: number;
+  flash_assists?: number;
+}
+
 export interface MatchCreate {
   scope_url?: string;
   played_at: string;
   map_name?: string;
   notes?: string;
   players: PlayerStatsCreate[];
+  matchups?: MatchupCreate[];
 }
 
 export interface MatchResponse {
@@ -361,10 +369,18 @@ export interface DemoCreatedPlayer {
   steam_id: string;
 }
 
+export interface DemoMatchup {
+  player_id: number;
+  opponent_id: number;
+  kills: number;
+  flash_assists: number;
+}
+
 export interface DemoParseResult {
   map_name: string | null;
   total_rounds: number;
   players: DemoPlayerStat[];
+  matchups: DemoMatchup[];
   created_players: DemoCreatedPlayer[];
   inactive_players: DemoCreatedPlayer[];
   errors: string[];

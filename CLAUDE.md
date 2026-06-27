@@ -160,6 +160,15 @@ chat_messages              (player_id nullable — SET NULL se o player for dele
   nickname, avatar_initials  (cópia do player no momento do envio)
   text
   created_at  (indexado — usado pra ordenar o histórico)
+
+player_vs_player_stats     (confronto direto — uma linha por DIREÇÃO, não por par;
+  id (PK)                   "Fresh matou Alana 3x" é 1 linha, a morte da Alana
+  match_id   (FK → matches) pro Fresh é a linha inversa, não um campo a mais)
+  player_id  (FK → players) — quem agiu
+  opponent_id (FK → players) — quem recebeu
+  UNIQUE(match_id, player_id, opponent_id)
+  kills            — vezes que player matou opponent nessa partida
+  flash_assists    — vezes que player flashou opponent levando a kill de aliado
 ```
 
 ### Decisões de design do banco
@@ -536,6 +545,7 @@ Após o login, o comportamento é idêntico independente do método — ambos us
 | GET /api/players | ✓ | ✓ | ✓ |
 | GET /api/matches | ✓ | ✓ | ✓ |
 | GET /api/sort-teams | ✓ | ✓ | ✓ |
+| GET /api/players/{id}/vs/{id2} | ✓ | ✓ | ✓ |
 | GET /api/auth/me | — | ✓ | ✓ |
 | GET /api/players/{id}/stats | — | ✓ | ✓ |
 | POST /api/auth/change-password | — | ✓ | ✓ |
@@ -702,8 +712,9 @@ em github.com para evitar confusão.
 - [x] Integração direta com scope.gg → **pesquisado, não implementável**: scope.gg não tem API pública (confirmado via busca — sem documentação de API, sem endpoint oficial). Restaria só scraping, frágil e fora de escopo; não implementado por decisão.
 - [x] ~~Aviso explícito no AddMatch quando um `player_id` resolvido pelo demo pertence a uma conta `is_active=False`~~ → **implementado** — `POST /api/demo/parse` retorna `inactive_players[]`; `AddMatch.tsx` mostra um banner de aviso separado do de "sem steam_id", recomendando reativar em `/admin`
 - [ ] Página com a média da EverestFrags — mostrar a média do grupo de kills, deaths, ADR, etc. (não só por jogador, um número consolidado do grupo todo). Pedido pelo Adrian em 2026-06-27, ainda não implementado.
-- [ ] Comparar 2 players lado a lado — botão "COMPARAR" (ex: no Dashboard), abre modal pra escolher 2 jogadores e mostra as métricas de ambos lado a lado, destacando vantagens/desvantagens de cada um (parecido com o painel "POR QUE #N?" do PlayerDetailModal, mas comparando 2 players entre si em vez de 1 player vs a média do grupo). Pedido pelo Adrian em 2026-06-27, ainda não implementado.
-  - **Confronto direto (head-to-head):** dentro da comparação, mostrar quantas vezes um matou/morreu pro outro, quantas vezes flashou/bangou (HE)/queimou (molotov) o outro. **Investigado em 2026-06-27:** kills/mortes e flash 1x1 já existem no `.dem` (cada evento de kill/cegada tem atacante E vítima — `demo_service.py`), mas são descartados depois de agregados; dano de HE/molotov por vítima específica nem é capturado ainda (`player_hurt` hoje só guarda quem causou o dano, não em quem — falta adicionar o campo de vítima no parse). Como o `.dem` é descartado após o parse (não persiste), esses dados de confronto direto só dão pra ter em partidas futuras (upload novo), não retroativo nas já cadastradas — exige tabela nova no banco (ex: `player_vs_player_stats`: partida/jogador/oponente/kills/mortes/flashes/he_hits/dano_molotov) + mudanças no parser + endpoint novo.
+- [ ] Comparar 2 players lado a lado — botão "COMPARAR" (ex: no Dashboard), abre modal pra escolher 2 jogadores e mostra as métricas de ambos lado a lado, destacando vantagens/desvantagens de cada um (parecido com o painel "POR QUE #N?" do PlayerDetailModal, mas comparando 2 players entre si em vez de 1 player vs a média do grupo). Pedido pelo Adrian em 2026-06-27 — **UI ainda não implementada**, mas o confronto direto (item abaixo) já está pronto no backend.
+  - [x] ~~Confronto direto (head-to-head): kills e flash_assists entre 2 players específicos~~ → **implementado em 2026-06-27** — tabela `player_vs_player_stats` (uma linha por direção: quem agiu → quem recebeu), `demo_service.py` rastreia o par durante o parse em vez de descartar (kills já tinha atacante+vítima por evento; flash assist idem), `POST /api/demo/parse` resolve player_id/opponent_id e retorna em `matchups[]`, `POST /api/matches` persiste via `MatchupCreate`, novo endpoint `GET /api/players/{id}/vs/{id2}` agrega em todas as partidas (kills de cada um, flash_assists de cada um, partidas jogadas juntos). Só vale pra partidas cadastradas via upload de demo a partir de agora — não retroativo nas já existentes (o `.dem` é descartado após o parse). **Sem UI ainda** — só a API; entra no modal de comparação quando ele for construído.
+  - [ ] Dano de HE/molotov por vítima específica (quantas vezes X bangou/queimou Y) — não implementado. O evento `player_hurt` hoje só guarda quem causou o dano (`demo_service.py`), não em quem; precisaria adicionar o steamid da vítima no `parse_event` e uma coluna nova em `player_vs_player_stats` (ex: `he_damage`, `fire_damage`). Decisão consciente de deixar pra depois (pedido pelo Adrian em 2026-06-27) — não é mais urgente que o resto da fila.
 
 > **Migração:** desde esta rodada, mudanças de schema passam por Alembic (`cd backend && alembic revision --autogenerate -m "..."` → revisar o arquivo gerado em `alembic/versions/` → `alembic upgrade head`). O banco local já tem as colunas `disadvantage_kills`, `advantage_kills`, `eco_kills` em `player_match_stats` e a tabela `chat_messages` — quem clonar o repo do zero recebe tudo via `create_all()` no startup; quem já tinha o banco rodando precisa só do `alembic upgrade head` (é um no-op se já rodou `python seed.py` recentemente, já que a baseline foi stampada refletindo esse schema).
 

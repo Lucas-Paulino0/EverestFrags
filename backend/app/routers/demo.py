@@ -3,7 +3,9 @@ Router — upload e parse de arquivos .dem do CS2
 
 POST /api/demo/parse  → recebe .dem, retorna stats dos jogadores
   - Requer autenticação (admin)
-  - Retorna: map_name, total_rounds, players[], created_players[], inactive_players[], errors[]
+  - Retorna: map_name, total_rounds, players[], matchups[], created_players[], inactive_players[], errors[]
+  - matchups[] = confronto direto (player_id, opponent_id, kills, flash_assists) — só
+    inclui pares onde os dois lados têm steam_id resolvido
   - Cada player do demo é casado com sua conta via steam_id; se não existir
     conta para aquele steam_id, ela é criada automaticamente (role viewer)
   - Cada player no retorno já vem com player_id resolvido — pronto para AddMatch
@@ -55,6 +57,7 @@ async def parse_demo(
         # Casa cada player do demo com sua conta via steam_id, criando quando necessário.
         created_players = []
         inactive_players = []
+        player_id_by_steamid: dict[str, int] = {}
         for p in result["players"]:
             steam_id = p.get("steam_id")
             if not steam_id:
@@ -63,12 +66,29 @@ async def parse_demo(
             player, created = get_or_create_by_steam(db, steam_id, fallback_nickname=p["nickname"])
             p["player_id"] = player.id
             p["nickname"] = player.nickname  # nickname canônico do sistema
+            player_id_by_steamid[steam_id] = player.id
             if created:
                 created_players.append({"id": player.id, "nickname": player.nickname, "steam_id": steam_id})
             elif not player.is_active:
                 inactive_players.append({"id": player.id, "nickname": player.nickname, "steam_id": steam_id})
         result["created_players"] = created_players
         result["inactive_players"] = inactive_players
+
+        # Resolve player_id/opponent_id dos confrontos diretos — descarta qualquer
+        # par envolvendo player sem steam_id (não há como casar/criar a conta).
+        matchups = []
+        for m in result.get("matchups", []):
+            player_id = player_id_by_steamid.get(m["player_steamid"])
+            opponent_id = player_id_by_steamid.get(m["opponent_steamid"])
+            if player_id is None or opponent_id is None:
+                continue
+            matchups.append({
+                "player_id": player_id,
+                "opponent_id": opponent_id,
+                "kills": m["kills"],
+                "flash_assists": m["flash_assists"],
+            })
+        result["matchups"] = matchups
 
         return result
     except RuntimeError as e:

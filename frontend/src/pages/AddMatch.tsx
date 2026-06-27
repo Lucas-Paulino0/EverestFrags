@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { playersApi, matchesApi, demoApi, type PlayerResponse, type PlayerStatsCreate, type DemoPlayerStat, type DemoCreatedPlayer } from "../api/client";
+import { playersApi, matchesApi, demoApi, type PlayerResponse, type PlayerStatsCreate, type DemoPlayerStat, type DemoCreatedPlayer, type DemoMatchup } from "../api/client";
 import { Navbar } from "../components/Navbar";
 
 const MAPS = ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo"];
@@ -111,6 +111,7 @@ export function AddMatch() {
   const [demoCreated, setDemoCreated] = useState<DemoCreatedPlayer[]>([]);
   const [demoUnmatched, setDemoUnmatched] = useState<string[]>([]);
   const [demoInactive, setDemoInactive] = useState<DemoCreatedPlayer[]>([]);
+  const [demoMatchups, setDemoMatchups] = useState<DemoMatchup[]>([]);
 
   useEffect(() => {
     playersApi.list().then(ps => {
@@ -154,6 +155,7 @@ export function AddMatch() {
       setDemoCreated(result.created_players);
       setDemoUnmatched(result.players.filter(p => p.player_id == null).map(p => p.nickname));
       setDemoInactive(result.inactive_players);
+      setDemoMatchups(result.matchups);
       setDemoFile(null);
     } catch (e: any) {
       setDemoError(e.message ?? "Erro ao processar demo");
@@ -178,12 +180,18 @@ export function AddMatch() {
     setSaving(true);
     setError("");
     try {
+      // Confrontos diretos só valem pros jogadores que continuam selecionados
+      // (o usuário pode desmarcar alguém do demo antes de salvar).
+      const selectedIds = new Set(selected.map(r => r.player_id));
+      const matchups = demoMatchups.filter(m => selectedIds.has(m.player_id) && selectedIds.has(m.opponent_id));
+
       await matchesApi.create({
         scope_url: scopeUrl || undefined,
         played_at: playedAt,
         map_name: mapName || undefined,
         notes: notes || undefined,
         players: selected.map(({ selected: _s, ...stats }) => stats),
+        matchups: matchups.length ? matchups : undefined,
       });
       navigate("/matches");
     } catch (e: any) {

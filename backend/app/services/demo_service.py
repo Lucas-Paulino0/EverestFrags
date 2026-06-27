@@ -247,6 +247,18 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     died_rounds: dict[str, set] = {}    # player -> rounds em que morreu
     kast_rounds: dict[str, set] = {}    # player -> rounds com K, A ou Trade
 
+    # Confronto direto (player x player) — só kills e flash_assists por enquanto.
+    # Dano de HE/molotov por vítima específica não dá: o evento player_hurt não
+    # carrega o steamid da vítima no parse atual (só do atacante) — ver Futuro.
+    vs_pairs: dict[tuple[str, str], dict[str, int]] = {}
+
+    def _vs_add(actor: str | None, target: str | None, field: str) -> None:
+        if not actor or not target or actor == target:
+            return
+        if actor not in stats or target not in stats:
+            return
+        vs_pairs.setdefault((actor, target), {"kills": 0, "flash_assists": 0})[field] += 1
+
     for k in kills:
         atk, vic = k["attacker"], k["victim"]
         rnd, tick = k["round"], k["tick"]
@@ -260,6 +272,7 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             stats[atk]["kills"] += 1
             stats[atk]["_ttk_ticks"].append(tick)
             kast_rounds.setdefault(atk, set()).add(rnd)
+            _vs_add(atk, vic, "kills")
 
         if vic and vic in stats:
             stats[vic]["deaths"] += 1
@@ -331,8 +344,14 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
                     k["atk_team"] == blind["attacker_team"] and
                     0 <= k["tick"] - blind["tick"] <= FLASH_WINDOW_TICKS):
                 flash_by_attacker[blind["attacker"]] = flash_by_attacker.get(blind["attacker"], 0) + 1
+                _vs_add(blind["attacker"], blind["victim"], "flash_assists")
                 break
-    del flash_events, kills, recent_kills, seen_opening_rounds, died_rounds, alive, round_spend, effective_spend
+
+    matchups = [
+        {"player_steamid": actor, "opponent_steamid": target, **counts}
+        for (actor, target), counts in vs_pairs.items()
+    ]
+    del flash_events, kills, recent_kills, seen_opening_rounds, died_rounds, alive, round_spend, effective_spend, vs_pairs
 
     # Dano / ADR / Weapon stats
     dmg_totals: dict[str, int] = {}
@@ -397,6 +416,7 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
         "map_name":     map_name,
         "total_rounds": total_rounds,
         "players":      list(stats.values()),
+        "matchups":     matchups,
         "errors":       errors,
     }
 

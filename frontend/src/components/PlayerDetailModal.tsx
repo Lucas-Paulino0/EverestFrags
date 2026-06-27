@@ -306,8 +306,8 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
                         }}
                       >
                         <div style={{ fontSize: 10.5, letterSpacing: "0.5px", color: "#8a98a8" }}>{s.label}</div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textAlign: "right", color: showDelta ? (isGood ? "#2dd4bf" : "#94a3b8") : "#2a3540" }}>
-                          {showDelta ? `${diff > 0 ? "▲+" : "▼"}${diff.toFixed(1)}` : "—"}
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textAlign: "right", color: showDelta ? (isGood ? "#2dd4bf" : "#f87171") : "#e8b948" }}>
+                          {showDelta ? `${diff > 0 ? "▲+" : "▼"}${diff.toFixed(1)}` : "≈ média"}
                         </div>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#dde6f0", textAlign: "right" }}>
                           {s.value}
