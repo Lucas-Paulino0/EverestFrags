@@ -55,6 +55,31 @@ const JUDGABLE_METRICS: { key: keyof RankingEntry; label: string; inverted?: boo
 interface StatItem { label: string; value: string; key: keyof RankingEntry }
 interface StatGroup { label: string; color: string; stats: StatItem[] }
 
+// Glossário — uma linha por sigla/label usada na grade de métricas abaixo.
+const GLOSSARY: { label: string; desc: string }[] = [
+  { label: "K/D", desc: "Kills dividido por mortes" },
+  { label: "KILLS", desc: "Eliminações" },
+  { label: "DEATHS", desc: "Mortes" },
+  { label: "ASSISTS", desc: "Assistências" },
+  { label: "DANO TOTAL", desc: "Dano total causado na partida" },
+  { label: "ADR", desc: "Dano médio por round (Average Damage per Round)" },
+  { label: "ADR +/-", desc: "ADR do jogador comparado à média da partida" },
+  { label: "RATING", desc: "Rating estimado, estilo HLTV 2.0" },
+  { label: "KAST%", desc: "% de rounds com Kill, Assist, Survived ou Trade" },
+  { label: "ECO KILLS", desc: "Kill contra inimigo com equipamento fraco (< $1000)" },
+  { label: "DESVANTAGEM K", desc: "Kill feito em desvantagem numérica no round" },
+  { label: "VANTAGEM K", desc: "Kill feito em vantagem numérica no round" },
+  { label: "OPENING KILLS", desc: "Primeiro kill do round — abre vantagem numérica" },
+  { label: "TRADE KILLS", desc: "Vingança: matou quem matou um aliado, em até 5s" },
+  { label: "TRADE DENIALS", desc: "Impediu que o inimigo vingasse um aliado em até 5s" },
+  { label: "TTK (MS)", desc: "Tempo médio entre kills do jogador, em milissegundos (menor é melhor)" },
+  { label: "FLASH ASSISTS", desc: "Cegou um inimigo que foi morto por um aliado em até 3s" },
+  { label: "DANO GRANADA", desc: "Dano causado por granada HE" },
+  { label: "HE HIT", desc: "Nº de inimigos atingidos por granada HE" },
+  { label: "FIRE HIT", desc: "Nº de inimigos atingidos por molotov/incendiária" },
+  { label: "DANO MOLOTOV", desc: "Dano causado por molotov/incendiária" },
+];
+
 function numOf(entry: RankingEntry, key: keyof RankingEntry): number {
   const v = entry[key];
   return typeof v === "number" ? v : 0;
@@ -141,7 +166,7 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.74)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 24, overflowY: "auto" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ position: "relative", width: 640, maxWidth: "100%", border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "30px 32px 28px", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ position: "relative", width: 760, maxWidth: "100%", border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "30px 32px 28px", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg,#0e7490,#6366f1,#e0a82e)" }} />
 
         <button
@@ -246,17 +271,17 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
           )}
         </div>
 
-        {/* Grade de métricas cruas, por categoria — com comparação vs média do grupo */}
+        {/* Métricas cruas, por categoria — tabela (nome | valor | vs média do grupo) */}
         {groups.map(g => (
           <div key={g.label} style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
               <span style={{ width: 9, height: 9, background: g.color, flexShrink: 0 }} />
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "2px", color: "#aebccd" }}>
                 {g.label}
               </span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "#1a222c", border: "1px solid #1a222c" }}>
-              {g.stats.map(s => {
+            <div style={{ border: "1px solid #1a222c" }}>
+              {g.stats.map((s, i) => {
                 // Delta absoluto vs a média do grupo (não percentual): métricas como
                 // adr_difference já são uma diferença em si, com média do grupo perto
                 // de zero por construção — uma % em cima disso explode (ex: 134900%).
@@ -268,20 +293,42 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
                 // de "bom/neutro", invertido pra deaths/TTK (onde menor é melhor).
                 const isGood = INVERTED_KEYS.has(s.key) ? diff < 0 : diff > 0;
                 return (
-                  <div key={s.label} style={{ background: "#0c1015", padding: "9px 8px", textAlign: "center" }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: "#dde6f0" }}>{s.value}</div>
-                    <div style={{ fontSize: 8, letterSpacing: "0.5px", color: "#475569", marginTop: 3 }}>{s.label}</div>
-                    {showDelta && (
-                      <div style={{ fontSize: 8, fontFamily: "'JetBrains Mono', monospace", color: isGood ? "#2dd4bf" : "#94a3b8", marginTop: 2 }}>
-                        {diff > 0 ? "▲" : "▼"} {Math.abs(diff).toFixed(1)} vs média ({avg.toFixed(1)})
-                      </div>
-                    )}
+                  <div
+                    key={s.label}
+                    style={{
+                      display: "grid", gridTemplateColumns: "1fr auto 150px", gap: 14, alignItems: "center",
+                      padding: "7px 12px", background: i % 2 === 0 ? "#0c1015" : "#0a0d12",
+                      borderBottom: i < g.stats.length - 1 ? "1px solid #161e27" : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: 10.5, letterSpacing: "0.5px", color: "#8a98a8" }}>{s.label}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: "#dde6f0", textAlign: "right" }}>
+                      {s.value}
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, textAlign: "right", color: showDelta ? (isGood ? "#2dd4bf" : "#94a3b8") : "#2a3540" }}>
+                      {showDelta ? `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(1)} (méd ${avg.toFixed(1)})` : "— na média"}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
         ))}
+
+        {/* Glossário — colapsável, sem precisar de estado novo (<details> nativo) */}
+        <details style={{ marginTop: 4, border: "1px solid #1a222c", background: "#0c1015" }}>
+          <summary style={{ cursor: "pointer", padding: "10px 14px", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "2px", color: "#5d6d80" }}>
+            GLOSSÁRIO — O QUE SIGNIFICA CADA SIGLA
+          </summary>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px 18px", padding: "4px 14px 14px" }}>
+            {GLOSSARY.map(item => (
+              <div key={item.label} style={{ fontSize: 10.5, lineHeight: 1.5 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "#aebccd", fontWeight: 700 }}>{item.label}</span>
+                <span style={{ color: "#5d6d80" }}> — {item.desc}</span>
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
     </div>
   );
