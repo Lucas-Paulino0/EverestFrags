@@ -926,3 +926,16 @@ de cada `player_hurt` com `weapon` de fogo, em paralelo ao `fire_enemies_hit` (c
 continua existindo). Adicionado a `UTILITY_METRICS` no ranking (mesmo peso que as
 demais métricas de utility) e exposto no modal de detalhe, em `/metrics` e no
 formulário de `AddMatch`.
+
+### Bug 26 — Fix do Bug 22 (eixo "trade" duplicado no radar) não chegou em `PodiumCard.tsx`
+O Bug 22 documentava a troca de `trade={entry.score_duel}` (idêntico ao eixo `openK`, mesmo
+valor repetido em 2 pontas do hexágono) por `trade={Math.min(entry.kd_ratio * 33, 100)}` em
+"PodiumCard.tsx e PlayerDetailModal.tsx" — mas o fix só foi de fato aplicado em
+`PlayerDetailModal.tsx` (e depois em `Profile.tsx`, que usa o mesmo padrão). `PodiumCard.tsx`
+continuou com o eixo duplicado sem ninguém notar, porque visualmente 2 pontas iguais ainda
+formam um hexágono plausível — só ficou óbvio ao adicionar labels nos eixos do `RadarChart`
+(ADR, KAST, RATING, OPEN K, K/D, UTIL, posicionados em volta do hexágono) e comparar o card
+do pódio com o modal de detalhe lado a lado. **Fix:** `trade={Math.min(entry.kd_ratio * 33,
+100)}` aplicado em `PodiumCard.tsx` também. Lição: quando um bugfix é descrito como "aplicado
+em N arquivos", checar os N arquivos de fato, não assumir que documentar já implica que todos
+foram tocados.
