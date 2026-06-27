@@ -186,7 +186,7 @@ export function Metrics() {
       </main>
 
       {selectedEntry && (
-        <PlayerDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+        <PlayerDetailModal entry={selectedEntry} allEntries={ranking} onClose={() => setSelectedEntry(null)} />
       )}
     </div>
   );
