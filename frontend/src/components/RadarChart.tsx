@@ -20,6 +20,10 @@ interface RadarProps {
 // Cores por posição no pódio (teal, prata, ouro — consistente com novo design)
 export const PODIUM_COLORS = ["#0e7490", "#6366f1", "#e0a82e"];
 
+// Nome de cada eixo, na mesma ordem de `values` em RadarChart — usado nos labels
+// ao redor do hexágono, pra dar pra saber qual eixo é qual sem abrir o detalhe.
+const AXIS_LABELS = ["ADR", "KAST", "RATING", "OPEN K", "K/D", "UTIL"];
+
 function polarToXY(angle: number, r: number, cx: number, cy: number) {
   const rad = (angle - 90) * (Math.PI / 180);
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -32,7 +36,8 @@ export function RadarChart({
 }: RadarProps) {
   const cx = size / 2;
   const cy = size / 2;
-  const maxR = size * 0.38;
+  // Raio menor que antes (0.38 -> 0.30) pra abrir espaço pros labels dos eixos.
+  const maxR = size * 0.30;
   const values = [adr, kast, rating, openK, trade, util].map(v => Math.min(100, Math.max(0, v)));
   const angles = [0, 60, 120, 180, 240, 300];
 
@@ -47,7 +52,7 @@ export function RadarChart({
   const gridLevels = [0.25, 0.5, 0.75, 1.0];
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: "visible" }}>
       {/* Grades */}
       {gridLevels.map((level, li) => {
         const pts = angles.map(a => {
@@ -93,6 +98,31 @@ export function RadarChart({
       {dataPoints.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r={2} fill={color} />
       ))}
+
+      {/* Labels dos eixos — fora do hexágono, alinhados conforme a posição (topo/baixo/lados) */}
+      {angles.map((a, i) => {
+        const pos = polarToXY(a, maxR + size * 0.1, cx, cy);
+        const isTop = a === 0;
+        const isBottom = a === 180;
+        const isRightSide = a === 60 || a === 120;
+        const textAnchor = isTop || isBottom ? "middle" : isRightSide ? "start" : "end";
+        const dominantBaseline = isTop ? "text-after-edge" : isBottom ? "text-before-edge" : "middle";
+        return (
+          <text
+            key={i}
+            x={pos.x}
+            y={pos.y}
+            fontSize={Math.max(7.5, size * 0.05)}
+            fontFamily="'JetBrains Mono', monospace"
+            letterSpacing="0.3px"
+            fill="#5d6d80"
+            textAnchor={textAnchor}
+            dominantBaseline={dominantBaseline}
+          >
+            {AXIS_LABELS[i]}
+          </text>
+        );
+      })}
     </svg>
   );
 }
