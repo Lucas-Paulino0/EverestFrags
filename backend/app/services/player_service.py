@@ -85,6 +85,9 @@ def update_player(db: Session, player_id: int, data: PlayerUpdate) -> Player:
             )
         player.nickname = data.nickname
 
+    if data.display_name is not None:
+        # string vazia limpa o apelido — volta a exibir o nickname (sincronizado com a Steam)
+        player.display_name = data.display_name.strip() or None
     if data.steam_id is not None:
         player.steam_id = data.steam_id
     if data.avatar_initials is not None:
@@ -150,6 +153,10 @@ def get_or_create_by_steam(
                 player.avatar_initials = (
                     words[0][0] + (words[1][0] if len(words) > 1 else words[0][-1])
                 ).upper()
+            # avatar_url é só de exibição — sempre sincroniza com a Steam, mesmo
+            # quando o nickname ficou preso por colisão (não afeta unicidade)
+            if profile.get("avatarfull"):
+                player.avatar_url = profile["avatarfull"]
             db.commit()
             db.refresh(player)
         return player, False
@@ -167,6 +174,7 @@ def get_or_create_by_steam(
         nickname=nickname,
         steam_id=steam_id,
         avatar_initials=initials,
+        avatar_url=profile.get("avatarfull") if profile else None,
         password_hash=None,   # sem senha — acesso só via Steam ou criado via demo
         role="viewer",
         is_active=True,

@@ -180,15 +180,17 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
         <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 24 }}>
           <div style={{
             width: 64, height: 64, border: "2px solid #0e7490", background: "#04222b",
-            display: "flex", alignItems: "center", justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
             fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 26, color: "#22d3ee",
             boxShadow: "0 0 16px rgba(14,116,144,.25)", flexShrink: 0,
           }}>
-            {entry.avatar_initials}
+            {entry.avatar_url
+              ? <img src={entry.avatar_url} alt={entry.player_nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : entry.avatar_initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 28, color: "#f0f9ff", lineHeight: 1 }}>
-              {entry.player_nickname}
+              {entry.player_display_name || entry.player_nickname}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 8 }}>
               <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: "#22d3ee", lineHeight: 1 }}>
@@ -259,12 +261,12 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
             <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
               {better && (
                 <div style={{ color: "#64748a" }}>
-                  ▼ <span style={{ color: "#e0a82e" }}>-{(better.score_final - entry.score_final).toFixed(1)} pts</span> para alcançar #{better.rank} ({better.player_nickname})
+                  ▼ <span style={{ color: "#e0a82e" }}>-{(better.score_final - entry.score_final).toFixed(1)} pts</span> para alcançar #{better.rank} ({better.player_display_name || better.player_nickname})
                 </div>
               )}
               {worse && (
                 <div style={{ color: "#64748a" }}>
-                  ▲ <span style={{ color: "#22d3ee" }}>+{(entry.score_final - worse.score_final).toFixed(1)} pts</span> de vantagem sobre #{worse.rank} ({worse.player_nickname})
+                  ▲ <span style={{ color: "#22d3ee" }}>+{(entry.score_final - worse.score_final).toFixed(1)} pts</span> de vantagem sobre #{worse.rank} ({worse.player_display_name || worse.player_nickname})
                 </div>
               )}
             </div>

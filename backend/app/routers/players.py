@@ -79,9 +79,21 @@ def update(
     player_id: int,
     data: PlayerUpdate,
     db: Session = Depends(get_db),
-    _: Player = Depends(require_admin),
+    current: Player = Depends(get_current_player),
 ):
-    """Atualiza campos de um jogador. Apenas admins."""
+    """
+    Atualiza campos de um jogador.
+
+    Admin pode editar qualquer campo de qualquer jogador. Um player comum só
+    pode editar o próprio display_name (apelido) — qualquer outro campo, ou
+    tentar editar outro jogador, retorna 403.
+    """
+    if current.role != "admin":
+        if current.id != player_id:
+            raise HTTPException(status_code=403, detail="Sem permissão para editar este jogador")
+        sent_fields = data.model_dump(exclude_unset=True)
+        if set(sent_fields) - {"display_name"}:
+            raise HTTPException(status_code=403, detail="Você só pode editar seu apelido")
     return update_player(db, player_id, data)
 
 

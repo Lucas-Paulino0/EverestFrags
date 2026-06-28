@@ -102,7 +102,7 @@ export function CompareModal({ allEntries, initialA, onClose }: CompareModalProp
             <option value="">— escolha o jogador A —</option>
             {allEntries.map(e => (
               <option key={e.player_id} value={e.player_id} disabled={e.player_id === idB}>
-                #{e.rank} {e.player_nickname}
+                #{e.rank} {e.player_display_name || e.player_nickname}
               </option>
             ))}
           </select>
@@ -115,7 +115,7 @@ export function CompareModal({ allEntries, initialA, onClose }: CompareModalProp
             <option value="">— escolha o jogador B —</option>
             {allEntries.map(e => (
               <option key={e.player_id} value={e.player_id} disabled={e.player_id === idA}>
-                #{e.rank} {e.player_nickname}
+                #{e.rank} {e.player_display_name || e.player_nickname}
               </option>
             ))}
           </select>
@@ -133,13 +133,15 @@ export function CompareModal({ allEntries, initialA, onClose }: CompareModalProp
                 <div key={e.player_id} style={{ textAlign: i === 0 ? "left" : "right", display: "flex", flexDirection: i === 0 ? "row" : "row-reverse", alignItems: "center", gap: 12 }}>
                   <div style={{
                     width: 50, height: 50, border: `2px solid ${i === 0 ? "#0e7490" : "#6366f1"}`, background: "#04222b",
-                    display: "flex", alignItems: "center", justifyContent: "center",
+                    display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
                     fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 19, color: i === 0 ? "#22d3ee" : "#818cf8", flexShrink: 0,
                   }}>
-                    {e.avatar_initials}
+                    {e.avatar_url
+                      ? <img src={e.avatar_url} alt={e.player_nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : e.avatar_initials}
                   </div>
                   <div>
-                    <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 19, color: "#f0f9ff", lineHeight: 1.1 }}>{e.player_nickname}</div>
+                    <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 19, color: "#f0f9ff", lineHeight: 1.1 }}>{e.player_display_name || e.player_nickname}</div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5d6d80", marginTop: 3 }}>#{e.rank} · {Math.round(e.score_final)} pts</div>
                   </div>
                 </div>
@@ -154,7 +156,9 @@ export function CompareModal({ allEntries, initialA, onClose }: CompareModalProp
               ) : (
                 <>
                   <strong style={{ color: entryA.score_final > entryB.score_final ? "#22d3ee" : "#818cf8" }}>
-                    {entryA.score_final > entryB.score_final ? entryA.player_nickname : entryB.player_nickname}
+                    {entryA.score_final > entryB.score_final
+                      ? (entryA.player_display_name || entryA.player_nickname)
+                      : (entryB.player_display_name || entryB.player_nickname)}
                   </strong>
                   {" "}está na frente por{" "}
                   <strong style={{ color: "#f0f9ff" }}>

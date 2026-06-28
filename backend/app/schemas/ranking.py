@@ -8,6 +8,7 @@ tanto o Dashboard quanto o modal de detalhe do player e a página /metrics.
 Não existe mais configuração de pesos editável — ver ranking_service.py.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -20,7 +21,9 @@ class RankingEntry(BaseModel):
     rank: int
     player_id: int
     player_nickname: str
+    player_display_name: Optional[str] = None
     avatar_initials: str
+    avatar_url: Optional[str] = None
     total_matches: int
 
     # Métricas brutas agregadas — soma

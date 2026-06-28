@@ -1,5 +1,6 @@
 import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { displayNameOf } from "../api/client";
 
 function Logo() {
   return (
@@ -67,9 +68,11 @@ export function Navbar() {
         {player ? (
           <>
             <Link to="/profile" className="ig-account-link">
-              <span className="ig-account-avatar">{player.avatar_initials}</span>
+              <span className="ig-account-avatar">
+                {player.avatar_url ? <img src={player.avatar_url} alt={player.nickname} /> : player.avatar_initials}
+              </span>
               <span className="ig-account-text">
-                <strong>{player.nickname}</strong>
+                <strong>{displayNameOf(player)}</strong>
                 <small>{isAdmin ? "admin" : "player"}</small>
               </span>
             </Link>

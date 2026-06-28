@@ -4,14 +4,20 @@ import {
   matchesApi,
   playersApi,
   rankingApi,
+  displayNameOf,
   type MatchResponse,
   type PlayerResponse,
   type RankingEntry,
 } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { Navbar } from "../components/Navbar";
+import { Avatar } from "../components/Avatar";
 import { PlayerDetailModal } from "../components/PlayerDetailModal";
 import { CompareModal } from "../components/CompareModal";
+
+function entryName(entry: RankingEntry): string {
+  return entry.player_display_name || entry.player_nickname;
+}
 
 function number(value: number, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : "0";
@@ -32,15 +38,6 @@ function formatDate(date: string) {
   });
 }
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase())
-    .join("") || "EF";
-}
-
 function getBestBy(ranking: RankingEntry[], key: keyof RankingEntry) {
   if (ranking.length === 0) return null;
 
@@ -49,24 +46,6 @@ function getBestBy(ranking: RankingEntry[], key: keyof RankingEntry) {
     const currentValue = Number(current[key] || 0);
     return currentValue > bestValue ? current : best;
   }, ranking[0]);
-}
-
-function Avatar({
-  initials,
-  nickname,
-  size = "md",
-  shape = "circle",
-}: {
-  initials?: string;
-  nickname: string;
-  size?: "sm" | "md" | "lg";
-  shape?: "circle" | "squircle";
-}) {
-  return (
-    <div className={`ig-avatar ig-avatar-${size} ${shape === "squircle" ? "ig-avatar-squircle" : ""}`} title={nickname}>
-      {initials || getInitials(nickname)}
-    </div>
-  );
 }
 
 function MetricChip({ label, value }: { label: string; value: string | number }) {
@@ -125,9 +104,9 @@ function RankingPost({
   return (
     <article className="ig-post ig-ranking-post ef-feed-post">
       <header className="ig-post-header">
-        <Avatar initials={entry.avatar_initials} nickname={entry.player_nickname} size="md" shape="squircle" />
+        <Avatar avatarUrl={entry.avatar_url} initials={entry.avatar_initials} nickname={entryName(entry)} size="md" shape="squircle" />
         <div>
-          <strong>{entry.player_nickname}</strong>
+          <strong>{entryName(entry)}</strong>
           <span>{title}</span>
         </div>
       </header>
@@ -222,7 +201,7 @@ export function Dashboard() {
           <section className="ig-feed-topbar ef-feed-topbar">
             <div>
               <span>Feed do squad</span>
-              <h1>{player ? `Boa, ${player.nickname}` : "EverestFrags"}</h1>
+              <h1>{player ? `Boa, ${displayNameOf(player)}` : "EverestFrags"}</h1>
             </div>
 
             {ranking.length >= 2 && (
@@ -241,7 +220,7 @@ export function Dashboard() {
             <>
               <section className="ig-composer ef-quick-panel">
                 <div className="ig-composer-left">
-                  <Avatar initials={player?.avatar_initials} nickname={player?.nickname || "Visitante"} size="sm" shape="squircle" />
+                  <Avatar avatarUrl={player?.avatar_url} initials={player?.avatar_initials} nickname={player ? displayNameOf(player) : "Visitante"} size="sm" shape="squircle" />
                   <div>
                     <strong>{ranking.length > 0 ? "Escolha o que quer acompanhar" : "O feed aparece conforme o grupo joga"}</strong>
                     <span>
@@ -276,7 +255,7 @@ export function Dashboard() {
                   <RankingPost
                     entry={topAdr}
                     title="está causando mais dano"
-                    text={`${topAdr.player_nickname} aparece com ${number(topAdr.adr)} de ADR médio.`}
+                    text={`${entryName(topAdr)} aparece com ${number(topAdr.adr)} de ADR médio.`}
                     onOpen={() => setSelectedEntry(topAdr)}
                   />
                 )}
@@ -333,8 +312,8 @@ export function Dashboard() {
                 {topPlayers.map(entry => (
                   <button key={entry.player_id} type="button" onClick={() => setSelectedEntry(entry)}>
                     <span>#{entry.rank}</span>
-                    <Avatar initials={entry.avatar_initials} nickname={entry.player_nickname} size="sm" shape="squircle" />
-                    <strong>{entry.player_nickname}</strong>
+                    <Avatar avatarUrl={entry.avatar_url} initials={entry.avatar_initials} nickname={entryName(entry)} size="sm" shape="squircle" />
+                    <strong>{entryName(entry)}</strong>
                     <b>{score(entry.score_final)}</b>
                   </button>
                 ))}
@@ -350,15 +329,15 @@ export function Dashboard() {
             <div className="ig-highlight-list">
               <div>
                 <span>🔥 Fragger</span>
-                <strong>{topFrag ? topFrag.player_nickname : "—"}</strong>
+                <strong>{topFrag ? entryName(topFrag) : "—"}</strong>
               </div>
               <div>
                 <span>💣 ADR</span>
-                <strong>{topAdr ? `${topAdr.player_nickname} · ${number(topAdr.adr)}` : "—"}</strong>
+                <strong>{topAdr ? `${entryName(topAdr)} · ${number(topAdr.adr)}` : "—"}</strong>
               </div>
               <div>
                 <span>🤝 Utility</span>
-                <strong>{topUtility ? topUtility.player_nickname : "—"}</strong>
+                <strong>{topUtility ? entryName(topUtility) : "—"}</strong>
               </div>
             </div>
           </section>

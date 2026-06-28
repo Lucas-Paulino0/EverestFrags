@@ -8,7 +8,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { authApi, type PlayerPublic } from "../api/client";
+import { authApi, BASE_URL, type PlayerPublic } from "../api/client";
 
 interface AuthContextType {
   player: PlayerPublic | null;
@@ -17,6 +17,8 @@ interface AuthContextType {
   login: (nickname: string, password: string) => Promise<void>;
   // Usado pelo SteamCallback após receber token e player via query string
   loginWithToken: (token: string, playerData: PlayerPublic) => void;
+  // Usado após editar o próprio apelido — re-busca /api/auth/me sem precisar relogar
+  refreshPlayer: () => Promise<void>;
   logout: () => void;
 }
 
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return;
     }
-    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${BASE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => {
         if (res.ok) return res.json() as Promise<PlayerPublic>;
         return Promise.reject(new Error("unauthorized"));
@@ -64,6 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPlayer(playerData);
   }
 
+  async function refreshPlayer() {
+    const data = await authApi.me();
+    localStorage.setItem("ef_player", JSON.stringify(data));
+    setPlayer(data);
+  }
+
   function logout() {
     authApi.logout().catch(() => {}); // fire-and-forget
     localStorage.removeItem("ef_token");
@@ -80,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         loginWithToken,
+        refreshPlayer,
         logout,
       }}
     >

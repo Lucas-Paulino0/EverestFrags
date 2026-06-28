@@ -29,8 +29,17 @@ class Player(Base):
     # Steam ID opcional — reservado para integração futura com Steam API / awpy
     steam_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
-    # Iniciais para o avatar gerado (ex: "GB" para GodBR)
+    # Iniciais para o avatar gerado (ex: "GB" para GodBR) — fallback quando não há avatar_url
     avatar_initials: Mapped[str] = mapped_column(String(2), nullable=False, default="??")
+
+    # Foto de perfil da Steam (avatarfull) — atualizada a cada login via Steam
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Apelido editável pelo próprio player ou admin — não é sincronizado com a Steam.
+    # 'nickname' continua sendo o nome sincronizado com a conta Steam (e o identificador
+    # único usado em login/matching); display_name é só de exibição, sobrepõe o nickname
+    # na UI quando definido.
+    display_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Senha bcrypt — NULL enquanto o player ainda não definiu senha
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

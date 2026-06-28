@@ -240,6 +240,7 @@ interface EditModalProps {
 
 function EditPlayerModal({ player, onClose, onSuccess }: EditModalProps) {
   const [nick, setNick] = useState(player.nickname);
+  const [apelido, setApelido] = useState(player.display_name ?? "");
   const [steamId, setSteamId] = useState(player.steam_id ?? "");
   const [msg, setMsg] = useState("");
   const [isError, setIsError] = useState(false);
@@ -254,6 +255,7 @@ function EditPlayerModal({ player, onClose, onSuccess }: EditModalProps) {
     try {
       await playersApi.update(player.id, {
         nickname: nick.trim() !== player.nickname ? nick.trim() : undefined,
+        display_name: apelido.trim() !== (player.display_name ?? "") ? apelido.trim() : undefined,
         steam_id: steamId.trim() || null,
       });
       setMsg("Player atualizado!");
@@ -303,6 +305,16 @@ function EditPlayerModal({ player, onClose, onSuccess }: EditModalProps) {
               autoFocus
               value={nick}
               onChange={e => setNick(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>APELIDO <span style={{ fontSize: 9, color: "#3a4757" }}>(opcional — sobrepõe o nickname na exibição)</span></label>
+            <input
+              value={apelido}
+              onChange={e => setApelido(e.target.value)}
+              placeholder={player.nickname}
               style={inputStyle}
             />
           </div>
@@ -496,10 +508,15 @@ export function Admin() {
                 <div key={p.id} style={{ display: "grid", gridTemplateColumns: "50px 1fr 100px 120px 100px 240px", alignItems: "center", padding: "12px 18px", borderBottom: "1px solid #11171f", opacity: p.is_active ? 1 : 0.45 }}>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#3a4757" }}>#{p.id}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, border: "1px solid #1e2a36", background: "#0d1218", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 11, color: "#566476", flexShrink: 0 }}>
-                      {p.avatar_initials}
+                    <div style={{ width: 28, height: 28, border: "1px solid #1e2a36", background: "#0d1218", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 11, color: "#566476", flexShrink: 0 }}>
+                      {p.avatar_url
+                        ? <img src={p.avatar_url} alt={p.nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : p.avatar_initials}
                     </div>
-                    <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 17, color: "#e3ebf3" }}>{p.nickname}</span>
+                    <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 17, color: "#e3ebf3" }}>
+                      {p.nickname}
+                      {p.display_name && <span style={{ color: "#566476", fontWeight: 500, fontSize: 13 }}> ({p.display_name})</span>}
+                    </span>
                   </div>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "1px", color: p.role === "admin" ? "#22d3ee" : "#566476" }}>
                     {p.role}

@@ -14,13 +14,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { rankingApi, authApi, type RankingEntry } from "../api/client";
+import { rankingApi, authApi, playersApi, type RankingEntry } from "../api/client";
 import { RadarChart } from "../components/RadarChart";
 import { CategoryBar } from "../components/CategoryBar";
 import { Navbar } from "../components/Navbar";
 
 export function Profile() {
-  const { player, isLoading } = useAuth();
+  const { player, isLoading, refreshPlayer } = useAuth();
   const navigate = useNavigate();
   const [entry, setEntry] = useState<RankingEntry | null>(null);
   const [loadingRank, setLoadingRank] = useState(true);
@@ -33,10 +33,35 @@ export function Profile() {
   const [pwdError, setPwdError] = useState(false);
   const [savingPwd, setSavingPwd] = useState(false);
 
+  // Edição do apelido (display_name) — separado do nickname sincronizado com a Steam
+  const [apelido, setApelido] = useState("");
+  const [apelidoMsg, setApelidoMsg] = useState("");
+  const [apelidoError, setApelidoError] = useState(false);
+  const [savingApelido, setSavingApelido] = useState(false);
+
+  useEffect(() => {
+    setApelido(player?.display_name ?? "");
+  }, [player]);
+
   // Redireciona se não estiver logado
   useEffect(() => {
     if (!isLoading && !player) navigate("/login");
   }, [player, isLoading, navigate]);
+
+  async function handleSaveApelido() {
+    if (!player) return;
+    setApelidoMsg(""); setApelidoError(false);
+    setSavingApelido(true);
+    try {
+      await playersApi.update(player.id, { display_name: apelido.trim() });
+      await refreshPlayer();
+      setApelidoMsg("Apelido salvo.");
+    } catch (e: any) {
+      setApelidoMsg(e.message ?? "Erro ao salvar apelido."); setApelidoError(true);
+    } finally {
+      setSavingApelido(false);
+    }
+  }
 
   // Carrega a posição no ranking do player logado
   useEffect(() => {
@@ -120,14 +145,23 @@ export function Profile() {
             <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
               <div style={{
                 width: 72, height: 72, border: "2px solid #0e7490", background: "#04222b",
-                display: "flex", alignItems: "center", justifyContent: "center",
+                display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
                 fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 28, color: "#22d3ee",
                 boxShadow: "0 0 16px rgba(14,116,144,.25)",
               }}>
-                {player.avatar_initials}
+                {player.avatar_url
+                  ? <img src={player.avatar_url} alt={player.nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : player.avatar_initials}
               </div>
               <div>
-                <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 32, color: "#f0f9ff", lineHeight: 1 }}>{player.nickname}</div>
+                <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: 32, color: "#f0f9ff", lineHeight: 1 }}>
+                  {player.display_name || player.nickname}
+                </div>
+                {player.display_name && (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#4a5868", marginTop: 4 }}>
+                    conta Steam: {player.nickname}
+                  </div>
+                )}
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "2px", color: player.role === "admin" ? "#22d3ee" : "#566476", marginTop: 6 }}>
                   {player.role === "admin" ? "GESTOR" : "PLAYER"}
                 </div>
@@ -194,6 +228,38 @@ export function Profile() {
             ))}
           </div>
         )}
+
+        {/* Apelido — nome de exibição editável, separado do nickname sincronizado com a Steam */}
+        <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "24px 28px", marginBottom: 24, position: "relative" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#0e7490,transparent)" }} />
+          <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "2px", color: "#e3ebf3", marginBottom: 8 }}>
+            APELIDO
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#4a5868", marginBottom: 16 }}>
+            Nome de exibição no site. O nome da sua conta Steam ({player.nickname}) continua sincronizado por baixo e não muda.
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <input
+              value={apelido}
+              onChange={e => setApelido(e.target.value)}
+              placeholder={player.nickname}
+              maxLength={50}
+              style={{ ...inputStyle, flex: 1, minWidth: 200, marginBottom: 0 }}
+            />
+            <button
+              onClick={handleSaveApelido}
+              disabled={savingApelido}
+              style={{ background: savingApelido ? "#0a5567" : "#0e7490", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: 1.5, padding: "11px 24px", cursor: savingApelido ? "wait" : "pointer" }}
+            >
+              {savingApelido ? "SALVANDO..." : "SALVAR APELIDO"}
+            </button>
+          </div>
+          {apelidoMsg && (
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: apelidoError ? "#f87171" : "#34d399", marginTop: 10 }}>
+              // {apelidoMsg}
+            </div>
+          )}
+        </div>
 
         {/* Alterar senha — só para players com conta interna (não steam-only) */}
         <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "24px 28px", position: "relative" }}>

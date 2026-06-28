@@ -236,6 +236,13 @@ button {
   background: linear-gradient(135deg, #22d3ee, #818cf8);
   color: #061016;
   font-weight: 900;
+  overflow: hidden;
+}
+
+.ig-account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ig-account-text strong,
@@ -370,6 +377,13 @@ button {
 .ig-avatar-sm { width: 42px; height: 42px; font-size: 15px; }
 .ig-avatar-md { width: 50px; height: 50px; font-size: 18px; }
 .ig-avatar-lg { width: 68px; height: 68px; font-size: 22px; }
+
+.ig-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
 
 .ig-composer,
 .ig-post,

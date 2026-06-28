@@ -36,12 +36,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": str(player.id)})
     return TokenResponse(
         access_token=token,
-        player=PlayerPublic(
-            id=player.id,
-            nickname=player.nickname,
-            role=player.role,
-            avatar_initials=player.avatar_initials,
-        ),
+        player=PlayerPublic.model_validate(player),
     )
 
 
@@ -58,12 +53,7 @@ def logout():
 @router.get("/me", response_model=PlayerPublic)
 def me(current: Player = Depends(get_current_player)):
     """Retorna os dados do player autenticado. Útil para validar o token no startup do frontend."""
-    return PlayerPublic(
-        id=current.id,
-        nickname=current.nickname,
-        role=current.role,
-        avatar_initials=current.avatar_initials,
-    )
+    return PlayerPublic.model_validate(current)
 
 
 @router.post("/change-password")

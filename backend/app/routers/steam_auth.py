@@ -88,8 +88,10 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
         player_data = {
             "id": player.id,
             "nickname": player.nickname,
+            "display_name": player.display_name,
             "role": player.role,
             "avatar_initials": player.avatar_initials,
+            "avatar_url": player.avatar_url,
         }
         player_encoded = quote(json.dumps(player_data))
 

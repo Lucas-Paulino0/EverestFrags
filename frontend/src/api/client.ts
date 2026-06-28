@@ -14,7 +14,7 @@
  * para que /api/... vá pelo proxy configurado no vite.config.ts.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+export const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 function getToken(): string | null {
   return localStorage.getItem("ef_token");
@@ -79,8 +79,15 @@ async function request<T>(
 export interface PlayerPublic {
   id: number;
   nickname: string;
+  display_name: string | null;
   role: "admin" | "viewer";
   avatar_initials: string;
+  avatar_url: string | null;
+}
+
+/** Apelido (display_name) se definido, senão o nickname sincronizado com a Steam. */
+export function displayNameOf(p: { nickname: string; display_name?: string | null }): string {
+  return p.display_name || p.nickname;
 }
 
 export interface TokenResponse {
@@ -113,7 +120,9 @@ export interface RankingEntry {
   rank: number;
   player_id: number;
   player_nickname: string;
+  player_display_name: string | null;
   avatar_initials: string;
+  avatar_url: string | null;
   total_matches: number;
 
   // Métricas brutas agregadas — soma
@@ -207,8 +216,10 @@ export const playersVsApi = {
 export interface PlayerResponse {
   id: number;
   nickname: string;
+  display_name: string | null;
   steam_id: string | null;
   avatar_initials: string;
+  avatar_url: string | null;
   role: string;
   is_active: boolean;
   created_at: string;
@@ -233,7 +244,7 @@ export const playersApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: number, data: Partial<Omit<PlayerCreate, "steam_id">> & { is_active?: boolean; role?: string; steam_id?: string | null }) =>
+  update: (id: number, data: Partial<Omit<PlayerCreate, "steam_id">> & { is_active?: boolean; role?: string; steam_id?: string | null; display_name?: string }) =>
     request<PlayerResponse>(`/api/players/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
