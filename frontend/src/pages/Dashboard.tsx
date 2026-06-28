@@ -233,7 +233,7 @@ export function Dashboard() {
 
                 <div className="ig-composer-actions">
                   <Link to="/matches">Partidas</Link>
-                  <Link to="/metrics">Ranking</Link>
+                  <Link to="/ranking">Ranking</Link>
                   <Link to="/sort">Times</Link>
                   {isAdmin && <Link to="/matches/new">Nova partida</Link>}
                 </div>
@@ -302,7 +302,7 @@ export function Dashboard() {
           <section className="ig-panel">
             <div className="ig-panel-title-row">
               <h2>Em alta</h2>
-              <Link to="/metrics">ver tudo</Link>
+              <Link to="/ranking">ver tudo</Link>
             </div>
 
             {topPlayers.length === 0 ? (
@@ -345,7 +345,7 @@ export function Dashboard() {
           <section className="ig-panel ef-shortcuts-panel">
             <h2>Acesso rápido</h2>
             <Link to="/matches">Histórico de partidas</Link>
-            <Link to="/metrics">Ranking completo</Link>
+            <Link to="/ranking">Ranking completo</Link>
             <Link to="/sort">Sortear times</Link>
             {isAdmin && <Link to="/admin">Gestão</Link>}
           </section>

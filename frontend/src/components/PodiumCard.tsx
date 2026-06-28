@@ -52,11 +52,13 @@ export function PodiumCard({ entry, onClick }: PodiumCardProps) {
           </div>
           <div style={{
             width: 50, height: 50, border: `1px solid ${border}`,
-            background: "#0a0e13",
+            background: "#0a0e13", overflow: "hidden",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 22, color: "#c6d2e0",
           }}>
-            {entry.avatar_initials}
+            {entry.avatar_url
+              ? <img src={entry.avatar_url} alt={entry.player_nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : entry.avatar_initials}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -68,7 +70,7 @@ export function PodiumCard({ entry, onClick }: PodiumCardProps) {
       </div>
 
       <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, letterSpacing: 0.5, color: "#f0f9ff", marginBottom: 4 }}>
-        {entry.player_nickname}
+        {entry.player_display_name || entry.player_nickname}
       </div>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#566476", marginBottom: 14 }}>
         {entry.total_matches} partidas · K/D {entry.kd_ratio.toFixed(2)}

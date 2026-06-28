@@ -33,14 +33,16 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
           {entry.rank}
         </span>
         <div style={{
-          width: 30, height: 30, border: "1px solid #1d2833", background: "#0d1218",
+          width: 30, height: 30, border: "1px solid #1d2833", background: "#0d1218", overflow: "hidden",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, color: "#9aabbd",
         }}>
-          {entry.avatar_initials}
+          {entry.avatar_url
+            ? <img src={entry.avatar_url} alt={entry.player_nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : entry.avatar_initials}
         </div>
         <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 19, color: "#c6d2e0", width: 180 }}>
-          {entry.player_nickname}
+          {entry.player_display_name || entry.player_nickname}
         </span>
         <div style={{ display: "flex", gap: 18, flex: 1 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5d6d80" }}>
@@ -72,18 +74,20 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
           {entry.rank}
         </div>
         <div style={{
-          width: 36, height: 36, border: "1px solid #1e2a36", background: "#0a0e13",
+          width: 36, height: 36, border: "1px solid #1e2a36", background: "#0a0e13", overflow: "hidden",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 16, color: "#aebccd",
         }}>
-          {entry.avatar_initials}
+          {entry.avatar_url
+            ? <img src={entry.avatar_url} alt={entry.player_nickname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : entry.avatar_initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 19, color: "#e3ebf3",
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           }}>
-            {entry.player_nickname}
+            {entry.player_display_name || entry.player_nickname}
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#475569" }}>
             K/D {entry.kd_ratio.toFixed(2)}

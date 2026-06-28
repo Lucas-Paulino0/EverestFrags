@@ -19,12 +19,13 @@ export function Navbar() {
   const mainItems = [
     { label: "Início", path: "/", icon: "⌂" },
     { label: "Partidas", path: "/matches", icon: "▶" },
-    { label: "Ranking", path: "/metrics", icon: "★" },
+    { label: "Ranking", path: "/ranking", icon: "★" },
     { label: "Times", path: "/sort", icon: "⚡" },
     { label: "Chat", path: "/chat", icon: "●" },
   ];
 
   const secondaryItems = [
+    { label: "Métricas", path: "/metrics", icon: "▣" },
     { label: "Médias", path: "/averages", icon: "◇" },
     ...(player ? [{ label: "Perfil", path: "/profile", icon: "◉" }] : []),
     ...(isAdmin ? [

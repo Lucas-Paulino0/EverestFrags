@@ -4,7 +4,8 @@
  * Rotas:
  *   /login         → público (Login)
  *   /auth/callback → público (SteamCallback — processa redirect do Steam OpenID)
- *   /              → público (Dashboard/Ranking)
+ *   /              → público (Dashboard — feed social)
+ *   /ranking       → público (pódio top-3 + grade de classificação)
  *   /matches       → público (histórico de partidas)
  *   /matches/new   → admin (adicionar partida)
  *   /matches/:id   → público (detalhes da partida — stats básicas)
@@ -26,6 +27,7 @@ import { AdminRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { SteamCallback } from "./pages/SteamCallback";
 import { Dashboard } from "./pages/Dashboard";
+import { Ranking } from "./pages/Ranking";
 import { Matches } from "./pages/Matches";
 import { MatchDetail } from "./pages/MatchDetail";
 import { AddMatch } from "./pages/AddMatch";
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<SteamCallback />} />
           <Route path="/" element={<Dashboard />} />
+          <Route path="/ranking" element={<Ranking />} />
           <Route path="/matches" element={<Matches />} />
           <Route path="/matches/new" element={<AdminRoute><AddMatch /></AdminRoute>} />
           <Route path="/matches/:id" element={<MatchDetail />} />
