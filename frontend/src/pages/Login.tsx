@@ -122,7 +122,7 @@ export function Login() {
 
         {/* Botão Steam */}
         <button
-          onClick={() => { window.location.href = "/api/auth/steam"; }}
+          onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL ?? ""}/api/auth/steam`; }}
           style={{ width: "100%", background: "#1b2838", border: "1px solid #2a4a63", color: "#dde6f0", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: 1.5, padding: "11px 13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#66c0f4">
