@@ -51,14 +51,6 @@ function getBestBy(ranking: RankingEntry[], key: keyof RankingEntry) {
   }, ranking[0]);
 }
 
-function getPlayerTag(entry: RankingEntry) {
-  if (entry.rank === 1) return "Topo do Everest";
-  if (entry.score_duel >= entry.score_combat && entry.score_duel >= entry.score_utility) return "Duelista";
-  if (entry.score_utility >= entry.score_combat && entry.score_utility >= entry.score_duel) return "Suporte";
-  if (entry.adr >= 85) return "Dano alto";
-  return "Em atividade";
-}
-
 function Avatar({
   initials,
   nickname,
@@ -83,105 +75,6 @@ function MetricChip({ label, value }: { label: string; value: string | number })
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
-  );
-}
-
-function SquadRadar({
-  ranking,
-  players,
-  onSelect,
-}: {
-  ranking: RankingEntry[];
-  players: PlayerResponse[];
-  onSelect: (entry: RankingEntry) => void;
-}) {
-  if (ranking.length > 0) {
-    return (
-      <section className="ef-squad-radar" aria-label="Radar do squad">
-        <div className="ef-radar-head">
-          <div>
-            <span>Radar do squad</span>
-            <strong>Quem está em evidência</strong>
-          </div>
-          <Link to="/metrics">ranking completo</Link>
-        </div>
-
-        <div className="ef-radar-scroll">
-          {ranking.slice(0, 10).map(entry => (
-            <button key={entry.player_id} type="button" className="ef-player-signal" onClick={() => onSelect(entry)}>
-              <div className="ef-player-signal-top">
-                <span className="ef-rank-chip">#{entry.rank}</span>
-                <Avatar initials={entry.avatar_initials} nickname={entry.player_nickname} size="sm" shape="squircle" />
-              </div>
-
-              <strong>{entry.player_nickname}</strong>
-              <small>{getPlayerTag(entry)}</small>
-
-              <div className="ef-signal-score">
-                <span>score</span>
-                <b>{score(entry.score_final)}</b>
-              </div>
-
-              <div className="ef-signal-bars" aria-hidden="true">
-                <span style={{ width: percent(entry.score_combat) }} />
-                <span style={{ width: percent(entry.score_duel) }} />
-                <span style={{ width: percent(entry.score_utility) }} />
-              </div>
-
-              <div className="ef-signal-meta">
-                <span>K/D {number(entry.kd_ratio, 2)}</span>
-                <span>ADR {number(entry.adr)}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="ef-squad-radar" aria-label="Jogadores do squad">
-      <div className="ef-radar-head">
-        <div>
-          <span>Squad</span>
-          <strong>Jogadores cadastrados</strong>
-        </div>
-      </div>
-
-      <div className="ef-radar-scroll">
-        {players.slice(0, 10).map(communityPlayer => (
-          <div key={communityPlayer.id} className="ef-player-signal ef-player-signal-muted">
-            <div className="ef-player-signal-top">
-              <span className="ef-rank-chip">{communityPlayer.is_active ? "ON" : "OFF"}</span>
-              <Avatar initials={communityPlayer.avatar_initials} nickname={communityPlayer.nickname} size="sm" shape="squircle" />
-            </div>
-
-            <strong>{communityPlayer.nickname}</strong>
-            <small>{communityPlayer.is_active ? "ativo no squad" : "inativo"}</small>
-
-            <div className="ef-signal-score">
-              <span>status</span>
-              <b>{communityPlayer.role === "admin" ? "admin" : "player"}</b>
-            </div>
-          </div>
-        ))}
-
-        {players.length === 0 && (
-          <div className="ef-player-signal ef-player-signal-muted">
-            <div className="ef-player-signal-top">
-              <span className="ef-rank-chip">EF</span>
-              <Avatar nickname="EverestFrags" size="sm" shape="squircle" />
-            </div>
-            <strong>EverestFrags</strong>
-            <small>aguardando dados</small>
-            <div className="ef-signal-score">
-              <span>status</span>
-              <b>online</b>
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
   );
 }
 

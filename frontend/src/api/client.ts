@@ -233,7 +233,7 @@ export const playersApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: number, data: Partial<PlayerCreate & { is_active: boolean; role: string; steam_id: string | null }>) =>
+  update: (id: number, data: Partial<Omit<PlayerCreate, "steam_id">> & { is_active?: boolean; role?: string; steam_id?: string | null }) =>
     request<PlayerResponse>(`/api/players/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
