@@ -59,7 +59,7 @@ function MetricChip({ label, value }: { label: string; value: string | number })
 
 function MatchPost({ match }: { match: MatchResponse }) {
   return (
-    <Link to={`/matches/${match.id}`} className="ig-post ig-match-post ef-feed-post">
+    <Link viewTransition to={`/matches/${match.id}`} className="ig-post ig-match-post ef-feed-post">
       <header className="ig-post-header">
         <div className="ig-map-avatar">{(match.map_name || "?").replace("de_", "").slice(0, 2).toUpperCase()}</div>
         <div>
@@ -195,7 +195,7 @@ export function Dashboard() {
           <header className="ig-mobile-header">
             <div className="ig-mobile-logo">EF</div>
             <strong>EverestFrags</strong>
-            {!player && <Link to="/login">Entrar</Link>}
+            {!player && <Link viewTransition to="/login">Entrar</Link>}
           </header>
 
           <section className="ig-feed-topbar ef-feed-topbar">
@@ -232,10 +232,10 @@ export function Dashboard() {
                 </div>
 
                 <div className="ig-composer-actions">
-                  <Link to="/matches">Partidas</Link>
-                  <Link to="/ranking">Ranking</Link>
-                  <Link to="/sort">Times</Link>
-                  {isAdmin && <Link to="/matches/new">Nova partida</Link>}
+                  <Link viewTransition to="/matches">Partidas</Link>
+                  <Link viewTransition to="/ranking">Ranking</Link>
+                  <Link viewTransition to="/sort">Times</Link>
+                  {isAdmin && <Link viewTransition to="/matches/new">Nova partida</Link>}
                 </div>
               </section>
 
@@ -277,8 +277,8 @@ export function Dashboard() {
                       Assim que uma partida for cadastrada ou uma demo for importada, ela aparece aqui como uma publicação.
                     </p>
                     <div className="ig-empty-actions">
-                      <Link to="/matches">Ver histórico</Link>
-                      {isAdmin && <Link to="/matches/new">Cadastrar partida</Link>}
+                      <Link viewTransition to="/matches">Ver histórico</Link>
+                      {isAdmin && <Link viewTransition to="/matches/new">Cadastrar partida</Link>}
                     </div>
                   </article>
                 )}
@@ -302,7 +302,7 @@ export function Dashboard() {
           <section className="ig-panel">
             <div className="ig-panel-title-row">
               <h2>Em alta</h2>
-              <Link to="/ranking">ver tudo</Link>
+              <Link viewTransition to="/ranking">ver tudo</Link>
             </div>
 
             {topPlayers.length === 0 ? (
@@ -344,10 +344,10 @@ export function Dashboard() {
 
           <section className="ig-panel ef-shortcuts-panel">
             <h2>Acesso rápido</h2>
-            <Link to="/matches">Histórico de partidas</Link>
-            <Link to="/ranking">Ranking completo</Link>
-            <Link to="/sort">Sortear times</Link>
-            {isAdmin && <Link to="/admin">Gestão</Link>}
+            <Link viewTransition to="/matches">Histórico de partidas</Link>
+            <Link viewTransition to="/ranking">Ranking completo</Link>
+            <Link viewTransition to="/sort">Sortear times</Link>
+            {isAdmin && <Link viewTransition to="/admin">Gestão</Link>}
           </section>
         </aside>
       </main>
