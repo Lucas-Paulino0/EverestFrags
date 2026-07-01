@@ -450,6 +450,7 @@ export interface DemoPlayerStat {
   nickname: string;
   steam_id: string;
   player_id: number | null;
+  team: "A" | "B" | null;
   kills: number;
   deaths: number;
   assists: number;
@@ -490,6 +491,9 @@ export interface DemoMatchup {
 export interface DemoParseResult {
   map_name: string | null;
   total_rounds: number;
+  team_a_score: number;
+  team_b_score: number;
+  team_winner: "A" | "B" | "tie" | null;
   players: DemoPlayerStat[];
   matchups: DemoMatchup[];
   created_players: DemoCreatedPlayer[];

@@ -367,6 +367,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     died_rounds: dict[str, set] = {}    # player -> rounds em que morreu
     kast_rounds: dict[str, set] = {}    # player -> rounds com K, A ou Trade
 
+    # Mapeamento player → {round: team_num} para detectar equipes e half-point
+    player_sides: dict[str, dict[int, int]] = {}
+
     # Confronto direto (player x player) — só kills e flash_assists por enquanto.
     # Dano de HE/molotov por vítima específica não dá: o evento player_hurt não
     # carrega o steamid da vítima no parse atual (só do atacante) — ver Futuro.
@@ -402,6 +405,13 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         if vic and vic in stats:
             stats[vic]["deaths"] += 1
             died_rounds.setdefault(vic, set()).add(rnd)
+
+        # Registra lado de cada jogador por round (para detecção de equipes)
+        if rnd >= 0:
+            if atk and atk in stats and atk_team is not None:
+                player_sides.setdefault(atk, {})[rnd] = atk_team
+            if vic and vic in stats and vic_team is not None:
+                player_sides.setdefault(vic, {})[rnd] = vic_team
 
         if k["assister"] and k["assister"] in stats:
             stats[k["assister"]]["assists"] += 1
@@ -501,6 +511,75 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
 
     del flash_events, kills, recent_kills, seen_opening_rounds, died_rounds, alive, round_spend, effective_spend, vs_pairs, round_kills, round_team, round_dmg
 
+    # ── 7b. Detecção de equipes e vencedor ────────────────────────────────────
+    # Estratégia: agrupa jogadores pelo team_num da primeira metade da partida.
+    # Half-point = primeiro round em que algum jogador troca de lado.
+    # Para cada round, verifica qual time estava no lado vencedor (lookup direto
+    # no player_sides do jogador, sem assumir posição fixa de T/CT).
+    from collections import Counter as _Counter
+
+    team_a_score = 0
+    team_b_score = 0
+    team_winner: str | None = None
+
+    if player_sides and round_winner:
+        # Detecta half-point
+        half_point = total_rounds // 2
+        for _pkey, _rmap in player_sides.items():
+            _sorted = sorted(_rmap)
+            for _i in range(len(_sorted) - 1):
+                _r1, _r2 = _sorted[_i], _sorted[_i + 1]
+                if _rmap[_r1] != _rmap[_r2] and _r2 - _r1 <= 4:
+                    half_point = _r2
+                    break
+            else:
+                continue
+            break
+
+        # Atribui jogadores a equipes pelo lado predominante na primeira metade
+        _team_by_num: dict[int, list[str]] = {}
+        for _pkey, _rmap in player_sides.items():
+            _first = [t for r, t in _rmap.items() if r < half_point] or list(_rmap.values())
+            if _first:
+                _tnum = _Counter(_first).most_common(1)[0][0]
+                _team_by_num.setdefault(_tnum, []).append(_pkey)
+
+        _tnums = sorted(_team_by_num)
+        if len(_tnums) == 2:
+            _a_num, _b_num = _tnums[0], _tnums[1]
+            _team_a = set(_team_by_num[_a_num])
+            _team_b = set(_team_by_num[_b_num])
+
+            for _pk in _team_a:
+                if _pk in stats:
+                    stats[_pk]["team"] = "A"
+            for _pk in _team_b:
+                if _pk in stats:
+                    stats[_pk]["team"] = "B"
+
+            # Conta rounds: para cada round ganho, verifica se algum jogador
+            # do time A estava no lado vencedor naquele round
+            for _rnd, _w_num in round_winner.items():
+                _a_side = next(
+                    (player_sides[_pk][_rnd] for _pk in _team_a
+                     if _rnd in player_sides.get(_pk, {})),
+                    None,
+                )
+                if _a_side is not None:
+                    if _a_side == _w_num:
+                        team_a_score += 1
+                    else:
+                        team_b_score += 1
+
+            if team_a_score > team_b_score:
+                team_winner = "A"
+            elif team_b_score > team_a_score:
+                team_winner = "B"
+            else:
+                team_winner = "tie"
+
+    del player_sides
+
     # Dano / ADR / Weapon stats
     dmg_totals: dict[str, int] = {}
     for h in hurt:
@@ -563,6 +642,9 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
     return {
         "map_name":     map_name,
         "total_rounds": total_rounds,
+        "team_a_score": team_a_score,
+        "team_b_score": team_b_score,
+        "team_winner":  team_winner,
         "players":      list(stats.values()),
         "matchups":     matchups,
         "errors":       errors,
@@ -573,6 +655,7 @@ def _empty(nickname: str, steam_id: str) -> dict:
     return {
         "nickname":          nickname,
         "steam_id":          steam_id,
+        "team":              None,
         "kills":             0,
         "deaths":            0,
         "assists":           0,

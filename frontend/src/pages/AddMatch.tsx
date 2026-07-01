@@ -17,7 +17,7 @@ import { Navbar } from "../components/Navbar";
 const MAPS = ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo"];
 const MAX_DEMO_MB = 750;
 
-type StatRow = PlayerStatsCreate & { selected: boolean };
+type StatRow = PlayerStatsCreate & { selected: boolean; team: "A" | "B" | null };
 
 const STAT_COLS: { key: keyof PlayerStatsCreate; label: string; min: number; max: number; step: number }[] = [
   { key: "kills", label: "K", min: 0, max: 60, step: 1 },
@@ -44,9 +44,9 @@ const STAT_COLS: { key: keyof PlayerStatsCreate; label: string; min: number; max
   { key: "fire_damage", label: "FIRE DMG", min: 0, max: 500, step: 1 },
 ];
 
-function emptyRow(playerId: number, selected = false): StatRow {
+function emptyRow(playerId: number, selected = false, team: "A" | "B" | null = null): StatRow {
   return {
-    player_id: playerId, selected,
+    player_id: playerId, selected, team,
     kills: 0, deaths: 0, assists: 0, damage_total: 0,
     adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
     disadvantage_kills: 0, advantage_kills: 0, eco_kills: 0,
@@ -67,7 +67,7 @@ function buildRows(ps: PlayerResponse[], demoPlayers?: DemoPlayerStat[]): StatRo
     const match = demoByPlayerId.get(p.id);
     if (!match) return emptyRow(p.id);
     return {
-      player_id: p.id, selected: true,
+      player_id: p.id, selected: true, team: match.team ?? null,
       kills: match.kills ?? 0,
       deaths: match.deaths ?? 0,
       assists: match.assists ?? 0,
@@ -118,6 +118,9 @@ export function AddMatch() {
   const [demoUnmatched, setDemoUnmatched] = useState<string[]>([]);
   const [demoInactive, setDemoInactive] = useState<DemoCreatedPlayer[]>([]);
   const [demoMatchups, setDemoMatchups] = useState<DemoMatchup[]>([]);
+  const [demoTeamAScore, setDemoTeamAScore] = useState<number | null>(null);
+  const [demoTeamBScore, setDemoTeamBScore] = useState<number | null>(null);
+  const [demoTeamWinner, setDemoTeamWinner] = useState<"A" | "B" | "tie" | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -162,6 +165,9 @@ export function AddMatch() {
     setDemoUnmatched((result.players ?? []).filter((p: any) => p.player_id == null).map((p: any) => p.nickname));
     setDemoInactive(result.inactive_players ?? []);
     setDemoMatchups(result.matchups ?? []);
+    setDemoTeamAScore(result.team_a_score ?? null);
+    setDemoTeamBScore(result.team_b_score ?? null);
+    setDemoTeamWinner(result.team_winner ?? null);
     setDemoFile(null);
     setParsing(false);
     setParseStep("");
@@ -352,6 +358,20 @@ export function AddMatch() {
           </div>
         )}
 
+        {/* Times detectados pelo demo */}
+        {demoTeamWinner != null && demoTeamAScore != null && demoTeamBScore != null && (
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", fontFamily: "'Barlow Condensed', sans-serif", fontSize: 15, fontWeight: 700, letterSpacing: "1px" }}>
+            <div style={{ padding: "8px 18px", borderRadius: 12, border: `2px solid ${demoTeamWinner === "A" ? "#22d3ee" : "rgba(34,211,238,0.25)"}`, background: demoTeamWinner === "A" ? "rgba(34,211,238,0.10)" : "rgba(255,255,255,0.03)", color: demoTeamWinner === "A" ? "#22d3ee" : "#7b8798" }}>
+              TIME A {demoTeamWinner === "A" && "✓"} · {demoTeamAScore}
+            </div>
+            <span style={{ color: "#3a4757", fontSize: 13 }}>vs</span>
+            <div style={{ padding: "8px 18px", borderRadius: 12, border: `2px solid ${demoTeamWinner === "B" ? "#e0a82e" : "rgba(224,168,46,0.2)"}`, background: demoTeamWinner === "B" ? "rgba(224,168,46,0.08)" : "rgba(255,255,255,0.03)", color: demoTeamWinner === "B" ? "#e0a82e" : "#7b8798" }}>
+              TIME B {demoTeamWinner === "B" && "✓"} · {demoTeamBScore}
+            </div>
+            {demoTeamWinner === "tie" && <span style={{ color: "#7b8798", fontSize: 12 }}>empate</span>}
+          </div>
+        )}
+
         {/* Metadados */}
         <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
           {[
@@ -388,6 +408,7 @@ export function AddMatch() {
             <thead>
               <tr style={{ background: "#101010", borderBottom: "1px solid #1c1c1c" }}>
                 <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 9, letterSpacing: "2px", color: "#5a5a5a", fontWeight: 400 }}>✓</th>
+                <th style={{ padding: "8px 6px", textAlign: "center", fontSize: 9, letterSpacing: "2px", color: "#5a5a5a", fontWeight: 400 }}>T</th>
                 <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 9, letterSpacing: "2px", color: "#5a5a5a", fontWeight: 400 }}>PLAYER</th>
                 {STAT_COLS.map(c => (
                   <th key={c.key} style={{ padding: "8px 8px", textAlign: "center", fontSize: 9, letterSpacing: "1.5px", color: "#5a5a5a", fontWeight: 400 }}>
@@ -406,6 +427,19 @@ export function AddMatch() {
                   >
                     <td style={{ padding: "6px 12px" }}>
                       <input type="checkbox" checked={row.selected} onChange={() => toggleRow(idx)} style={{ accentColor: "#0e7490", cursor: "pointer" }} />
+                    </td>
+                    <td style={{ padding: "6px 6px", textAlign: "center" }}>
+                      {row.team && (
+                        <span style={{
+                          display: "inline-block", padding: "2px 7px", borderRadius: 6,
+                          fontSize: 10, fontWeight: 800, letterSpacing: "1px",
+                          background: row.team === "A" ? "rgba(34,211,238,0.12)" : "rgba(224,168,46,0.12)",
+                          color: row.team === "A" ? "#22d3ee" : "#e0a82e",
+                          border: `1px solid ${row.team === "A" ? "rgba(34,211,238,0.3)" : "rgba(224,168,46,0.3)"}`,
+                        }}>
+                          {row.team}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "6px 12px" }}>
                       <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0d0d0" }}>
