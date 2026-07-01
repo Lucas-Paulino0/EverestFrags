@@ -1500,101 +1500,63 @@ body .ef-feed-topbar {
 
 
 /* ==========================================================================
-   v6 — Feed exatamente no centro + opções totalmente à direita
-
-   Esta regra muda a lógica do layout:
-   - a coluna principal fica centralizada no meio da tela;
-   - a coluna direita fica presa no canto direito da página;
-   - o menu lateral continua fixo e expansível.
+   v7 — Grid simples: sidebar offset + feed + coluna direita
+   Sem position:fixed no right-column (causava sobreposição no feed).
    ========================================================================== */
 
 body .ig-page.ef-social-app {
   padding-left: 0 !important;
   margin-left: 0 !important;
-  width: 100vw !important;
+  width: 100% !important;
   min-height: 100vh !important;
   overflow-x: hidden !important;
 }
 
-/* O layout deixa de centralizar o conjunto feed+sidebar direita.
-   Agora ele vira apenas o "palco" da página. */
 body .ig-page .ig-layout.ef-feed-layout {
-  width: 100vw !important;
+  width: 100% !important;
   max-width: none !important;
-  min-height: 100vh !important;
-
   margin: 0 !important;
-  padding: 28px 28px 70px !important;
-
-  display: block !important;
+  /* padding-left empurra o conteúdo para fora da sidebar fixa */
+  padding: 28px 28px 70px calc(var(--ef-sidebar-closed) + 24px) !important;
+  display: grid !important;
+  grid-template-columns: 1fr 300px !important;
+  gap: 24px !important;
+  align-items: start !important;
+  box-sizing: border-box !important;
 }
 
-/* A coluna do feed fica no centro visual da tela. */
 body .ig-page .ig-layout.ef-feed-layout > .ig-feed-column {
-  width: min(680px, calc(100vw - 420px - var(--ef-sidebar-closed))) !important;
-  max-width: 680px !important;
+  width: 100% !important;
   min-width: 0 !important;
-
-  margin-left: auto !important;
-  margin-right: auto !important;
+  max-width: 680px !important;
+  margin: 0 !important;
 }
 
-/* A coluna da direita fica completamente à direita da tela. */
 body .ig-page .ig-layout.ef-feed-layout > .ig-right-column,
 body .ig-page .ig-layout.ef-feed-layout > .ef-right-column {
-  position: fixed !important;
+  position: sticky !important;
   top: 28px !important;
-  right: 28px !important;
-
-  width: 320px !important;
-  max-width: 320px !important;
+  width: 100% !important;
+  min-width: 0 !important;
   max-height: calc(100vh - 56px) !important;
-
   overflow-y: auto !important;
-  padding-right: 2px !important;
-
-  z-index: 10 !important;
 }
 
-/* Scroll da coluna direita mais discreto */
-body .ig-page .ig-layout.ef-feed-layout > .ig-right-column::-webkit-scrollbar,
-body .ig-page .ig-layout.ef-feed-layout > .ef-right-column::-webkit-scrollbar {
-  width: 6px;
-}
-
-body .ig-page .ig-layout.ef-feed-layout > .ig-right-column::-webkit-scrollbar-thumb,
-body .ig-page .ig-layout.ef-feed-layout > .ef-right-column::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.18);
-  border-radius: 999px;
-}
-
-/* Mantém o menu lateral por cima quando expandir */
+/* Mantém a sidebar por cima do conteúdo quando expandida */
 body .ig-sidebar {
   z-index: 50 !important;
 }
 
-/* Em telas menores, não cabe feed central + coluna direita fixa.
-   Aí a coluna direita desce para baixo do feed. */
-@media (max-width: 1280px) {
+/* Telas médias: coluna direita desaparece, feed em coluna única */
+@media (max-width: 1100px) {
   body .ig-page .ig-layout.ef-feed-layout {
-    padding-left: calc(var(--ef-sidebar-closed) + 24px) !important;
-    padding-right: 24px !important;
-  }
-
-  body .ig-page .ig-layout.ef-feed-layout > .ig-feed-column {
-    width: min(720px, calc(100vw - var(--ef-sidebar-closed) - 48px)) !important;
-    max-width: 720px !important;
+    grid-template-columns: 1fr !important;
+    padding-right: 20px !important;
   }
 
   body .ig-page .ig-layout.ef-feed-layout > .ig-right-column,
   body .ig-page .ig-layout.ef-feed-layout > .ef-right-column {
-    position: static !important;
-    width: min(720px, calc(100vw - var(--ef-sidebar-closed) - 48px)) !important;
-    max-width: 720px !important;
-    max-height: none !important;
-
-    margin: 24px auto 0 !important;
-    overflow: visible !important;
+    display: none !important;
   }
 }
 
