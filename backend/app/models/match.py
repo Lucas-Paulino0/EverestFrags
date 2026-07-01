@@ -15,7 +15,7 @@ fire_enemies_hit, damage_total, adr_difference.
 
 from datetime import datetime, date
 from typing import Optional, List
-from sqlalchemy import Integer, String, Numeric, Text, Date, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Integer, String, Numeric, Text, Date, DateTime, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -37,6 +37,11 @@ class Match(Base):
 
     # Anotações livres do gestor (ex: "deu lag no server")
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Sistema de vitórias — preenchido ao registrar resultado após o sorteio
+    team_1_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)   # player_ids do time 1
+    team_2_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)   # player_ids do time 2
+    winning_team: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1 ou 2
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -62,9 +67,9 @@ class PlayerMatchStats(Base):
     Constraint UNIQUE(player_id, match_id) impede duplicatas.
 
     Métricas de SOMA (agregadas somando todas as partidas):
-        kills, deaths, assists, damage_total, opening_kills, trade_kills, trade_denials,
-        flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit,
-        disadvantage_kills, advantage_kills, eco_kills
+        kills, deaths, assists, damage_total, opening_kills, opening_deaths,
+        trade_kills, trade_denials, flash_assists, grenade_damage, he_enemies_hit,
+        fire_enemies_hit, disadvantage_kills, advantage_kills, eco_kills
 
     Métricas de MÉDIA (agregadas tirando média entre partidas):
         adr, adr_difference, hltv_rating, kast_percent, time_to_kill_ms
@@ -98,10 +103,15 @@ class PlayerMatchStats(Base):
 
     # --- DUELOS (peso 30% no score final) ---
     opening_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Morreu como vítima da 1a kill do round — invertido na normalização (menos é melhor)
+    opening_deaths: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     trade_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     trade_denials: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # TTK em milissegundos — menor é melhor, por isso é invertido na normalização
     time_to_kill_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Rounds em que foi MVP (mais kills do time vencedor; desempate por dano)
+    mvps: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # --- UTILITY (peso 20% no score final) ---
     flash_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -155,3 +165,33 @@ class PlayerVsPlayerStats(Base):
 
     def __repr__(self) -> str:
         return f"<PlayerVsPlayerStats match_id={self.match_id} player_id={self.player_id} opponent_id={self.opponent_id} kills={self.kills}>"
+
+
+class PlayerWins(Base):
+    """
+    Placar de vitórias paralelo ao ranking de performance.
+    Atualizado automaticamente ao registrar o resultado de uma partida
+    via POST /api/matches/{id}/result. Não influencia o score de ranking —
+    é um placar social separado.
+    """
+
+    __tablename__ = "player_wins"
+
+    player_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("players.id", ondelete="CASCADE"), primary_key=True
+    )
+    wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    win_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_win_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    player: Mapped["Player"] = relationship("Player")  # noqa: F821
+
+    @property
+    def win_rate(self) -> float:
+        total = self.wins + self.losses
+        return round(self.wins / total * 100, 1) if total else 0.0
+
+    def __repr__(self) -> str:
+        return f"<PlayerWins player_id={self.player_id} wins={self.wins} losses={self.losses}>"

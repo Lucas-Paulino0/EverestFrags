@@ -23,7 +23,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
-import { AdminRoute } from "./components/ProtectedRoute";
+import { ProtectedRoute, AdminRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { SteamCallback } from "./pages/SteamCallback";
 import { Dashboard } from "./pages/Dashboard";
@@ -37,6 +37,9 @@ import { Averages } from "./pages/Averages";
 import { Profile } from "./pages/Profile";
 import { Admin } from "./pages/Admin";
 import { Chat } from "./pages/Chat";
+import { HeadToHead } from "./pages/HeadToHead";
+import { Wins } from "./pages/Wins";
+import { HowItWorks } from "./pages/HowItWorks";
 
 export default function App() {
   return (
@@ -53,9 +56,12 @@ export default function App() {
           <Route path="/sort" element={<Sort />} />
           <Route path="/metrics" element={<Metrics />} />
           <Route path="/averages" element={<Averages />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/h2h" element={<HeadToHead />} />
+          <Route path="/wins" element={<Wins />} />
+          <Route path="/como-funciona" element={<HowItWorks />} />
           {/* Rota curinga — redireciona para o dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

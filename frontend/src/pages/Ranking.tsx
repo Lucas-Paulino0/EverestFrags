@@ -84,13 +84,27 @@ export function Ranking() {
                   COMPARAR
                 </span>
               </button>
+              <a
+                href="/api/export"
+                download="everestfrags.xlsx"
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  border: "1px solid #1e2a36", background: "#0d1218", cursor: "pointer",
+                  padding: "8px 14px", textDecoration: "none",
+                }}
+              >
+                <span style={{ width: 6, height: 6, background: "#0e7490", flexShrink: 0 }} />
+                <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 12.5, letterSpacing: "1.5px", color: "#c6d2e0" }}>
+                  EXPORTAR
+                </span>
+              </a>
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#2e3e50", letterSpacing: "0.5px", marginBottom: 18 }}>
               // score relativo ao grupo — atualiza a cada nova partida registrada
             </div>
             {/* 3 colunas com o centro levemente maior (1º lugar destacado) */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.08fr 1fr", gap: 18, alignItems: "end" }}>
-              {podium.map(e => <PodiumCard key={e.player_id} entry={e} onClick={() => setSelectedEntry(e)} />)}
+              {podium.map((e, i) => <PodiumCard key={e.player_id} entry={e} index={i} onClick={() => setSelectedEntry(e)} />)}
             </div>
 
             {/* Seção classificação (4–11) */}
@@ -101,7 +115,7 @@ export function Ranking() {
                   <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg,#1e2a36,transparent)" }} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-                  {midGrid.map(e => <RankCard key={e.player_id} entry={e} onClick={() => setSelectedEntry(e)} />)}
+                  {midGrid.map((e, i) => <RankCard key={e.player_id} entry={e} index={i} onClick={() => setSelectedEntry(e)} />)}
                 </div>
               </>
             )}
@@ -109,7 +123,7 @@ export function Ranking() {
             {/* Lista compacta (12+) */}
             {tail.length > 0 && (
               <div style={{ border: "1px solid #172029", background: "#0a0e13", marginTop: 14 }}>
-                {tail.map(e => <RankCard key={e.player_id} entry={e} compact onClick={() => setSelectedEntry(e)} />)}
+                {tail.map((e, i) => <RankCard key={e.player_id} entry={e} index={i} compact onClick={() => setSelectedEntry(e)} />)}
               </div>
             )}
 

@@ -27,11 +27,11 @@ export function CategoryBar({ label, value, color, textColor, height = 5 }: Cate
       </div>
       <div style={{ height, background: "#151d26" }}>
         <div
+          className="ef-bar-grow"
           style={{
             height: "100%",
             width: `${clamped}%`,
             background: color,
-            transition: "width 0.4s ease",
           }}
         />
       </div>

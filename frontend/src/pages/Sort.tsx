@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { playersApi, sortApi, type PlayerResponse, type SortTeamsResponse } from "../api/client";
+import { playersApi, sortApi, aiApi, type PlayerResponse, type SortTeamsResponse } from "../api/client";
 import { Navbar } from "../components/Navbar";
 
 const TEAM_COLORS  = ["#0e7490", "#6366f1", "#e0a82e"];
@@ -27,6 +27,11 @@ export function Sort() {
   const [error, setError]       = useState("");
   const [copied, setCopied]     = useState(false);
 
+  const [predictionText, setPredictionText]       = useState<string | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionExpanded, setPredictionExpanded] = useState(false);
+  const [predictionUnavailable, setPredictionUnavailable] = useState(false);
+
   useEffect(() => {
     playersApi.list().then(ps => {
       setPlayers(ps);
@@ -34,16 +39,8 @@ export function Sort() {
     });
   }, []);
 
-  function togglePlayer(id: number) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function selectAll() { setSelected(new Set(players.map(p => p.id))); }
-  function clearAll()  { setSelected(new Set()); }
+  function selectAll() { setPredictionText(null); setPredictionExpanded(false); setSelected(new Set(players.map(p => p.id))); }
+  function clearAll()  { setPredictionText(null); setPredictionExpanded(false); setSelected(new Set()); }
 
   async function handleSort() {
     if (selected.size < nTeams * 2) {
@@ -73,6 +70,32 @@ export function Sort() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  async function handlePrediction() {
+    setPredictionExpanded(true);
+    if (predictionText !== null) return;
+    if (selected.size === 0) return;
+    setPredictionLoading(true);
+    try {
+      const res = await aiApi.prediction(Array.from(selected));
+      setPredictionUnavailable(res.unavailable);
+      setPredictionText(res.text ?? null);
+    } catch {
+      setPredictionUnavailable(true);
+    } finally {
+      setPredictionLoading(false);
+    }
+  }
+
+  // Reset prediction when selection changes
+  function togglePlayer(id: number) {
+    setPredictionText(null); setPredictionExpanded(false);
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
   }
 
@@ -204,6 +227,44 @@ export function Sort() {
             >
               {loading ? "SORTEANDO..." : "SORTEAR"}
             </button>
+
+            {/* Previsão de forma — card colapsável */}
+            {selected.size > 0 && (
+              <div style={{ marginTop: 12, border: "1px solid #172029", position: "relative" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#6366f1,transparent)" }} />
+                <button
+                  onClick={handlePrediction}
+                  style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                >
+                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "2px", color: "#818cf8" }}>
+                    FORMA DO DIA
+                  </div>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#6366f1" }}>
+                    {predictionExpanded ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {predictionExpanded && (
+                  <div style={{ borderTop: "1px solid #172029", padding: "12px 14px" }}>
+                    {predictionLoading ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 12, height: 12, border: "2px solid #6366f1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868" }}>analisando forma...</span>
+                        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                      </div>
+                    ) : predictionUnavailable ? (
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#f87171" }}>
+                        // IA indisponível
+                      </div>
+                    ) : (
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9cadb9", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                        {predictionText}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Painel direito — resultado ────────────────────────────── */}
@@ -247,10 +308,12 @@ export function Sort() {
                 {result.teams.map((team, ti) => (
                   <div
                     key={team.team_number}
+                    className={ti % 2 === 0 ? "ef-slide-left" : "ef-slide-right"}
                     style={{
                       border: `1px solid ${TEAM_BORDERS[ti]}`,
                       background: TEAM_GLOWS[ti],
                       marginBottom: 12, position: "relative",
+                      animationDelay: `${ti * 120}ms`,
                     }}
                   >
                     <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: TEAM_COLORS[ti] }} />

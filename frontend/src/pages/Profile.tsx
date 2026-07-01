@@ -14,16 +14,89 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { rankingApi, authApi, playersApi, type RankingEntry } from "../api/client";
+import { rankingApi, authApi, playersApi, aiApi, type RankingEntry, type PlayerMatchHistory } from "../api/client";
 import { RadarChart } from "../components/RadarChart";
 import { CategoryBar } from "../components/CategoryBar";
 import { Navbar } from "../components/Navbar";
+
+function HistoryChart({ data }: { data: PlayerMatchHistory[] }) {
+  const W = 100; // viewBox width (%)
+  const H = 80;
+  const PAD = { top: 8, bottom: 24, left: 32, right: 8 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const maxRating = Math.max(...data.map(d => d.hltv_rating), 2.0);
+  const minRating = Math.min(...data.map(d => d.hltv_rating), 0);
+  const range = maxRating - minRating || 1;
+
+  const xOf = (i: number) => PAD.left + (i / (data.length - 1)) * innerW;
+  const yOf = (v: number) => PAD.top + innerH - ((v - minRating) / range) * innerH;
+
+  const points = data.map((d, i) => `${xOf(i).toFixed(1)},${yOf(d.hltv_rating).toFixed(1)}`).join(" ");
+  const areaBottom = `${xOf(data.length - 1).toFixed(1)},${(PAD.top + innerH).toFixed(1)} ${xOf(0).toFixed(1)},${(PAD.top + innerH).toFixed(1)}`;
+
+  const yLabels = [minRating, (minRating + maxRating) / 2, maxRating];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 140, display: "block" }}>
+      {/* y-axis labels */}
+      {yLabels.map(v => (
+        <text key={v} x={PAD.left - 2} y={yOf(v) + 3} textAnchor="end"
+          style={{ fontSize: 4, fill: "#4a5868", fontFamily: "JetBrains Mono, monospace" }}>
+          {v.toFixed(2)}
+        </text>
+      ))}
+
+      {/* horizontal gridlines */}
+      {yLabels.map(v => (
+        <line key={v} x1={PAD.left} x2={PAD.left + innerW} y1={yOf(v)} y2={yOf(v)}
+          stroke="#1b2530" strokeWidth="0.3" />
+      ))}
+
+      {/* reference line at 1.0 rating */}
+      {minRating <= 1.0 && maxRating >= 1.0 && (
+        <line x1={PAD.left} x2={PAD.left + innerW} y1={yOf(1.0)} y2={yOf(1.0)}
+          stroke="#2a3f50" strokeWidth="0.5" strokeDasharray="1,1" />
+      )}
+
+      {/* area fill */}
+      <polygon points={`${points} ${areaBottom}`} fill="rgba(14,116,144,0.08)" />
+
+      {/* line */}
+      <polyline points={points} fill="none" stroke="#0e7490" strokeWidth="1.2" strokeLinejoin="round" />
+
+      {/* dots */}
+      {data.map((d, i) => (
+        <circle key={i} cx={xOf(i)} cy={yOf(d.hltv_rating)} r="1.8"
+          fill={d.hltv_rating >= 1.0 ? "#0e7490" : "#3a4757"} stroke="#070a0e" strokeWidth="0.5">
+          <title>{d.map_name ?? "partida"} — Rating: {d.hltv_rating.toFixed(2)} | K/D: {d.kills}/{d.deaths} | ADR: {d.adr.toFixed(0)}</title>
+        </circle>
+      ))}
+
+      {/* x-axis labels (only first, middle and last) */}
+      {[0, Math.floor(data.length / 2), data.length - 1].filter((v, i, a) => a.indexOf(v) === i).map(i => (
+        <text key={i} x={xOf(i)} y={H - 4} textAnchor="middle"
+          style={{ fontSize: 3.5, fill: "#4a5868", fontFamily: "JetBrains Mono, monospace" }}>
+          {data[i].played_at.slice(5)}
+        </text>
+      ))}
+    </svg>
+  );
+}
 
 export function Profile() {
   const { player, isLoading, refreshPlayer } = useAuth();
   const navigate = useNavigate();
   const [entry, setEntry] = useState<RankingEntry | null>(null);
   const [loadingRank, setLoadingRank] = useState(true);
+  const [history, setHistory] = useState<PlayerMatchHistory[]>([]);
+
+  // Coach IA
+  const [coachText, setCoachText] = useState<string | null>(null);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachExpanded, setCoachExpanded] = useState(false);
+  const [coachUnavailable, setCoachUnavailable] = useState(false);
 
   // Campos de troca de senha
   const [currentPwd, setCurrentPwd] = useState("");
@@ -72,6 +145,12 @@ export function Profile() {
     }).catch(console.error).finally(() => setLoadingRank(false));
   }, [player]);
 
+  // Carrega histórico de partidas para o gráfico de evolução
+  useEffect(() => {
+    if (!player) return;
+    playersApi.history(player.id).then(setHistory).catch(console.error);
+  }, [player]);
+
   async function handleChangePassword() {
     setPwdMsg(""); setPwdError(false);
     if (!currentPwd || !newPwd || !confirmPwd) {
@@ -92,6 +171,22 @@ export function Profile() {
       setPwdMsg(e.message ?? "Erro ao alterar senha."); setPwdError(true);
     } finally {
       setSavingPwd(false);
+    }
+  }
+
+  async function handleCoach() {
+    if (!player) return;
+    setCoachExpanded(true);
+    if (coachText !== null) return; // já carregado
+    setCoachLoading(true);
+    try {
+      const res = await aiApi.coach(player.id);
+      setCoachUnavailable(res.unavailable);
+      setCoachText(res.text ?? null);
+    } catch {
+      setCoachUnavailable(true);
+    } finally {
+      setCoachLoading(false);
     }
   }
 
@@ -166,11 +261,43 @@ export function Profile() {
                   {player.role === "admin" ? "GESTOR" : "PLAYER"}
                 </div>
                 {entry && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-                    <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 42, color: "#22d3ee", lineHeight: 1 }}>
-                      #{entry.rank}
-                    </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868" }}>NO RANKING</span>
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 42, color: "#22d3ee", lineHeight: 1 }}>
+                        #{entry.rank}
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868" }}>NO RANKING</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                      <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "1.5px", color: "#e0a82e", background: "rgba(224,168,46,.1)", border: "1px solid rgba(224,168,46,.3)", padding: "2px 8px" }}>
+                        {entry.level_name.toUpperCase()}
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868" }}>
+                        {entry.xp_total.toLocaleString()} XP
+                      </span>
+                    </div>
+                    {/* Barra de XP animada */}
+                    {(() => {
+                      const levels = [0, 500, 1000, 2000, 3500, 5500, 9000];
+                      const xp = entry.xp_total;
+                      const nextIdx = levels.findIndex(t => t > xp);
+                      const prevXp = nextIdx > 0 ? levels[nextIdx - 1] : levels[levels.length - 1];
+                      const nextXp = nextIdx > 0 ? levels[nextIdx] : null;
+                      const pct = nextXp ? Math.min(100, ((xp - prevXp) / (nextXp - prevXp)) * 100) : 100;
+                      return (
+                        <div style={{ marginTop: 8, maxWidth: 200 }}>
+                          <div style={{ height: 3, background: "#151d26", overflow: "hidden" }}>
+                            <div className="ef-bar-grow" style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #0e7490, #22d3ee)" }} />
+                          </div>
+                          {nextXp && (
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#334155", marginTop: 3 }}>
+                              {(nextXp - xp).toLocaleString()} XP para o próximo nível
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                   </div>
                 )}
               </div>
@@ -226,6 +353,65 @@ export function Profile() {
                 <div style={{ fontSize: 9.5, letterSpacing: "1.5px", color: "#4a5868", marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Evolução histórica — gráfico de HLTV Rating por partida */}
+        {history.length >= 2 && (
+          <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "24px 28px", marginBottom: 24, position: "relative" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#e0a82e,transparent)" }} />
+            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "2px", color: "#e3ebf3", marginBottom: 4 }}>
+              EVOLUÇÃO — HLTV RATING
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868", marginBottom: 16 }}>
+              {history.length} partida{history.length !== 1 ? "s" : ""} registradas
+            </div>
+            <HistoryChart data={history} />
+          </div>
+        )}
+
+        {/* Coach IA — análise individual */}
+        {entry && (
+          <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", marginBottom: 24, position: "relative" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#6366f1,transparent)" }} />
+            <button
+              onClick={handleCoach}
+              style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <div>
+                <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "2px", color: "#e3ebf3" }}>
+                  COACH IA
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868", marginTop: 3 }}>
+                  análise individual baseada nos seus dados vs grupo
+                </div>
+              </div>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: "#6366f1" }}>
+                {coachExpanded ? "▲" : "▼"}
+              </span>
+            </button>
+
+            {coachExpanded && (
+              <div style={{ borderTop: "1px solid #1e2a36", padding: "20px 28px" }}>
+                {coachLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #6366f1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#4a5868" }}>
+                      analisando seu histórico...
+                    </span>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                  </div>
+                ) : coachUnavailable ? (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#f87171" }}>
+                    // IA indisponível — configure GROQ_API_KEY no backend
+                  </div>
+                ) : (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: "#c8d8e8", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                    {coachText}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

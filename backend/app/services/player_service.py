@@ -17,6 +17,11 @@ from app.models.player import Player
 from app.schemas.player import PlayerCreate, PlayerUpdate
 from app.services.auth_service import hash_password, verify_password
 
+# Hash fixo para equalizar tempo de resposta quando o nickname não existe
+# (sem isso, o servidor responde ~200ms mais rápido para nicks inexistentes,
+# expondo via timing attack quais nicks estão cadastrados)
+_DUMMY_HASH = hash_password("dummy_timing_prevention_ef")
+
 
 def get_all_players(db: Session, include_inactive: bool = False) -> List[Player]:
     """Retorna todos os players. Por padrão, filtra apenas os ativos."""
@@ -113,6 +118,7 @@ def authenticate(db: Session, nickname: str, password: str) -> Optional[Player]:
         Player.is_active == True,  # noqa: E712
     ).first()
     if not player or not player.password_hash:
+        verify_password(password, _DUMMY_HASH)  # equaliza tempo de resposta
         return None
     if not verify_password(password, player.password_hash):
         return None

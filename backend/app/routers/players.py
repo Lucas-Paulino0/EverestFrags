@@ -16,11 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.player import PlayerCreate, PlayerUpdate, PlayerResponse, PlayerStatsResponse
+from app.schemas.player import PlayerCreate, PlayerUpdate, PlayerResponse, PlayerResponsePublic, PlayerStatsResponse
 from app.schemas.match import HeadToHeadResponse
 from app.services.auth_service import get_current_player, require_admin
 from app.services.player_service import get_all_players, get_player_by_id, create_player, update_player
-from app.services.ranking_service import get_player_stats
+from app.services.ranking_service import get_player_stats, get_player_match_history
 from app.services.match_service import get_head_to_head
 from app.services.steam_service import get_steam_profile
 from app.models.player import Player
@@ -28,7 +28,7 @@ from app.models.player import Player
 router = APIRouter(prefix="/api/players", tags=["players"])
 
 
-@router.get("", response_model=List[PlayerResponse])
+@router.get("", response_model=List[PlayerResponsePublic])
 def list_players(db: Session = Depends(get_db)):
     """Lista todos os jogadores ativos ordenados por nickname."""
     return get_all_players(db)
@@ -68,7 +68,7 @@ async def steam_lookup(
     }
 
 
-@router.get("/{player_id}", response_model=PlayerResponse)
+@router.get("/{player_id}", response_model=PlayerResponsePublic)
 def get_player(player_id: int, db: Session = Depends(get_db)):
     """Retorna dados públicos de um jogador."""
     return get_player_by_id(db, player_id)
@@ -95,6 +95,16 @@ def update(
         if set(sent_fields) - {"display_name"}:
             raise HTTPException(status_code=403, detail="Você só pode editar seu apelido")
     return update_player(db, player_id, data)
+
+
+@router.get("/{player_id}/history")
+def player_history(player_id: int, db: Session = Depends(get_db)):
+    """
+    Evolução histórica de um jogador — stats por partida em ordem cronológica.
+    Usado para gráficos de evolução no perfil.
+    """
+    get_player_by_id(db, player_id)  # 404 se não existir
+    return get_player_match_history(db, player_id)
 
 
 @router.get("/{player_id}/stats", response_model=PlayerStatsResponse)

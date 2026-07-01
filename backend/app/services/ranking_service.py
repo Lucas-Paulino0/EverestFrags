@@ -16,15 +16,15 @@ opção mais justa e estável disponível: nenhuma categoria é privilegiada por
 alguém, e não se move sozinha conforme mais dados entram.
 
 Métricas de SOMA:
-  kills, deaths, assists, damage_total, opening_kills, trade_kills, trade_denials,
-  flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit, fire_damage,
-  disadvantage_kills, advantage_kills, eco_kills
+  kills, deaths, assists, damage_total, opening_kills, opening_deaths, trade_kills,
+  trade_denials, flash_assists, grenade_damage, he_enemies_hit, fire_enemies_hit,
+  fire_damage, disadvantage_kills, advantage_kills, eco_kills
 
 Métricas de MÉDIA:
   adr, adr_difference, hltv_rating, kast_percent, time_to_kill_ms
 
 Métricas INVERTIDAS na normalização (menor é melhor):
-  deaths, time_to_kill_ms
+  deaths, time_to_kill_ms, opening_deaths
 
 weighted_kills (Round Swing, estilo HLTV 3.0):
   Métrica derivada usada SÓ no score Combate, no lugar de "kills" puro — kills
@@ -38,7 +38,7 @@ weighted_kills (Round Swing, estilo HLTV 3.0):
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 
-from app.models.match import PlayerMatchStats
+from app.models.match import PlayerMatchStats, Match
 from app.models.player import Player
 from app.schemas.ranking import RankingEntry, GroupAveragesResponse
 
@@ -52,7 +52,7 @@ WEIGHT_UTILITY = 0.34
 # Métricas de soma — agregadas somando valores de todas as partidas
 SOMA_METRICS = [
     "kills", "deaths", "assists", "damage_total",
-    "opening_kills", "trade_kills", "trade_denials",
+    "opening_kills", "opening_deaths", "trade_kills", "trade_denials", "mvps",
     "flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit", "fire_damage",
     "disadvantage_kills", "advantage_kills", "eco_kills",
 ]
@@ -63,7 +63,7 @@ MEDIA_METRICS = [
 ]
 
 # Métricas onde MENOR é melhor — normalizadas de forma invertida
-INVERTED_METRICS = {"deaths", "time_to_kill_ms"}
+INVERTED_METRICS = {"deaths", "time_to_kill_ms", "opening_deaths"}
 
 # Agrupamento por categoria para cálculo do score parcial
 # weighted_kills substitui "kills" puro — ver docstring do módulo (Round Swing).
@@ -71,8 +71,43 @@ COMBAT_METRICS = [
     "weighted_kills", "deaths", "assists", "damage_total",
     "adr", "adr_difference", "hltv_rating", "kast_percent", "grenade_damage",
 ]
-DUEL_METRICS = ["opening_kills", "trade_kills", "trade_denials", "time_to_kill_ms"]
+DUEL_METRICS = ["opening_kills", "opening_deaths", "trade_kills", "trade_denials", "time_to_kill_ms"]
 UTILITY_METRICS = ["flash_assists", "grenade_damage", "he_enemies_hit", "fire_enemies_hit", "fire_damage"]
+
+
+_XP_LEVELS = [
+    (9000, "Imortal"),
+    (5500, "Lenda"),
+    (3500, "Atirador"),
+    (2000, "Elite"),
+    (1000, "Veterano"),
+    (500,  "Soldado"),
+    (0,    "Recruta"),
+]
+
+
+def _calc_xp(kills: int, assists: int, opening_kills: int, trade_kills: int,
+             flash_assists: int, mvps: int, total_matches: int, hltv_rating: float) -> int:
+    """XP on-the-fly — retroativo, sem coluna no banco."""
+    xp = (kills * 10 + assists * 5 + opening_kills * 20
+          + trade_kills * 10 + flash_assists * 5 + mvps * 15)
+    # Bônus por partida jogada (presença = 50 XP)
+    xp += total_matches * 50
+    # Bônus de rating médio (por partida)
+    if hltv_rating >= 1.4:
+        xp += total_matches * 25
+    elif hltv_rating >= 1.2:
+        xp += total_matches * 15
+    elif hltv_rating >= 1.0:
+        xp += total_matches * 5
+    return int(xp)
+
+
+def _xp_to_level(xp: int) -> str:
+    for threshold, name in _XP_LEVELS:
+        if xp >= threshold:
+            return name
+    return "Recruta"
 
 
 def _normalize(value: float, min_val: float, max_val: float, inverted: bool = False) -> float:
@@ -204,8 +239,10 @@ def get_ranking(db: Session) -> List[RankingEntry]:
                 assists=p["assists"],
                 damage_total=p["damage_total"],
                 opening_kills=p["opening_kills"],
+                opening_deaths=p["opening_deaths"],
                 trade_kills=p["trade_kills"],
                 trade_denials=p["trade_denials"],
+                mvps=p["mvps"],
                 flash_assists=p["flash_assists"],
                 grenade_damage=p["grenade_damage"],
                 he_enemies_hit=p["he_enemies_hit"],
@@ -224,9 +261,52 @@ def get_ranking(db: Session) -> List[RankingEntry]:
                 score_duel=round(p["score_duel"], 1),
                 score_utility=round(p["score_utility"], 1),
                 score_final=round(p["score_final"], 1),
+                xp_total=_calc_xp(
+                    kills=p["kills"], assists=p["assists"],
+                    opening_kills=p["opening_kills"], trade_kills=p["trade_kills"],
+                    flash_assists=p["flash_assists"], mvps=p["mvps"],
+                    total_matches=p["match_count"], hltv_rating=round(p["hltv_rating"], 3),
+                ),
+                level_name=_xp_to_level(_calc_xp(
+                    kills=p["kills"], assists=p["assists"],
+                    opening_kills=p["opening_kills"], trade_kills=p["trade_kills"],
+                    flash_assists=p["flash_assists"], mvps=p["mvps"],
+                    total_matches=p["match_count"], hltv_rating=round(p["hltv_rating"], 3),
+                )),
             )
         )
     return result
+
+
+def get_player_match_history(db: Session, player_id: int) -> list:
+    """
+    Retorna stats por partida de um jogador em ordem cronológica.
+    Usado para o gráfico de evolução histórica no perfil.
+    """
+    from sqlalchemy.orm import joinedload
+
+    rows = (
+        db.query(PlayerMatchStats)
+        .options(joinedload(PlayerMatchStats.match))
+        .filter(PlayerMatchStats.player_id == player_id)
+        .join(Match, PlayerMatchStats.match_id == Match.id)
+        .order_by(Match.played_at.asc(), Match.id.asc())
+        .all()
+    )
+    return [
+        {
+            "match_id": row.match_id,
+            "played_at": str(row.match.played_at),
+            "map_name": row.match.map_name,
+            "kills": row.kills,
+            "deaths": row.deaths,
+            "assists": row.assists,
+            "adr": float(row.adr),
+            "hltv_rating": float(row.hltv_rating),
+            "kast_percent": float(row.kast_percent),
+        }
+        for row in rows
+    ]
 
 
 def get_player_stats(db: Session, player_id: int) -> Dict[str, Any]:

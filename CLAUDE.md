@@ -724,8 +724,35 @@ em github.com para evitar confusão.
 - [x] ~~Comparar 2 players lado a lado~~ → **implementado em 2026-06-27** — botão "COMPARAR" no Dashboard (ao lado do título "PÓDIO") abre `CompareModal.tsx`: 2 selects pra escolher os jogadores (a partir do `allEntries` já carregado, sem endpoint novo pra isso), tabela de métricas lado a lado destacando quem está melhor em cada uma (mesma lógica de inversão do PlayerDetailModal — menor é melhor em DEATHS/TTK), veredito de quem está na frente no score final, e a seção "Confronto Direto" usando o head-to-head já implementado (`GET /api/players/{a}/vs/{b}`).
   - [x] ~~Confronto direto (head-to-head): kills e flash_assists entre 2 players específicos~~ → **implementado em 2026-06-27** — tabela `player_vs_player_stats` (uma linha por direção: quem agiu → quem recebeu), `demo_service.py` rastreia o par durante o parse em vez de descartar (kills já tinha atacante+vítima por evento; flash assist idem), `POST /api/demo/parse` resolve player_id/opponent_id e retorna em `matchups[]`, `POST /api/matches` persiste via `MatchupCreate`, novo endpoint `GET /api/players/{id}/vs/{id2}` agrega em todas as partidas (kills de cada um, flash_assists de cada um, partidas jogadas juntos). Só vale pra partidas cadastradas via upload de demo a partir de agora — não retroativo nas já existentes (o `.dem` é descartado após o parse). **Sem UI ainda** — só a API; entra no modal de comparação quando ele for construído.
   - [ ] Dano de HE/molotov por vítima específica (quantas vezes X bangou/queimou Y) — não implementado. O evento `player_hurt` hoje só guarda quem causou o dano (`demo_service.py`), não em quem; precisaria adicionar o steamid da vítima no `parse_event` e uma coluna nova em `player_vs_player_stats` (ex: `he_damage`, `fire_damage`). Decisão consciente de deixar pra depois (pedido pelo Adrian em 2026-06-27) — não é mais urgente que o resto da fila.
+- [x] ~~`opening_deaths` (primeira morte do round) não rastreado~~ → **implementado em 2026-06-29** — coluna `opening_deaths` em `PlayerMatchStats` (migration `e80dd8bf709b`), adicionado a `SOMA_METRICS` no ranking com inversão (menos = melhor), exposto em AddMatch/Averages/Metrics/PlayerDetailModal/CompareModal. No demo parser: flag `seen_opening_rounds` evita contar o mesmo round duas vezes.
+- [x] ~~MVP por round (quem foi mais decisivo em cada round ganho) não rastreado~~ → **implementado em 2026-06-29** — coluna `mvps` em `PlayerMatchStats` (migration `c6e87ec82e1d`), calculado como "player com mais kills do time vencedor no round; desempate por dano total causado no round". Rastreado no `demo_service.py` via `round_kills`/`round_team`/`round_dmg` dicts + `round_winner` mapa (N-ésimo `round_end` real → team_num vencedor). Adicionado a `SOMA_METRICS`, exposto em AddMatch/Averages/Metrics/PlayerDetailModal/CompareModal.
+- [x] ~~UI não responsiva em celular~~ → **implementado em 2026-06-29** — sidebar já virava bottom tab bar no mobile (`@media ≤820px`); adicionadas regras CSS para corrigir: (a) padding simétrico em `<main>` e `<div>` de conteúdo (48px→12px), (b) tabelas com `overflow-x: auto` para não transbordar, (c) headers das páginas internas com padding reduzido (48px→16px), (d) padding-bottom 90px para não cobrir o bottom tab bar.
+- [x] ~~Segurança — SECRET_KEY/DATABASE_URL hardcodadas com fallback inseguro~~ → **resolvido em 2026-06-30** — `auth_service.py` e `database.py` usam `os.environ["KEY"]` com `RuntimeError` se ausente; sem fallback default inseguro
+- [x] ~~Segurança — JWT exposto na URL do callback Steam~~ → **resolvido em 2026-06-30** — código opaco UUID de 30s TTL em `_pending_codes`; endpoint `POST /api/auth/steam/exchange`; `SteamCallback.tsx` troca o código via POST
+- [x] ~~Segurança — /docs público em produção~~ → **resolvido em 2026-06-30** — `main.py` usa `DEBUG=true` (env var) para habilitar `/docs`; padrão desabilitado. No Render, não configurar `DEBUG` ou deixar `false`. Em dev local, adicionar `DEBUG=true` ao `.env`
+- [x] ~~Segurança — magic bytes não validados no upload de .dem~~ → **resolvido em 2026-06-30** — `demo.py` verifica `HL2DEMO\x00` nos primeiros 8 bytes; rejeita com 400 se não bater
+- [x] ~~Segurança — steam_id exposto em rotas públicas~~ → **resolvido em 2026-06-30** — `PlayerResponsePublic` (sem steam_id) em `schemas/player.py`; `GET /api/players` e `GET /api/players/{id}` usam esse schema; rotas admin mantém `PlayerResponse` com steam_id
+- [x] ~~Segurança — rate limiting ausente~~ → **resolvido em 2026-06-30** — `slowapi==0.1.9` em `requirements.txt`; limiter centralizado em `app/limiter.py`; `POST /api/auth/login` → 5/min, `POST /api/demo/parse` → 3/min; `main.py` registra o exception handler
+- [x] ~~Segurança — security headers ausentes~~ → **resolvido em 2026-06-30** — middleware em `main.py`: X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy, HSTS em prod (não em dev)
+- [x] ~~Segurança — players inativos retornados em head-to-head~~ → **resolvido em 2026-06-30** — `match_service.get_head_to_head` filtra `is_active=True` em ambos os players
+- [x] ~~Página /h2h~~ → **implementado em 2026-06-30** — `HeadToHead.tsx`: dois selects de jogador, barra de progresso comparativa por kills e flash_assists, veredito de quem domina; rota `/h2h` em `App.tsx`; link "H2H" com ícone `Crosshair` no `Navbar`
+- [x] ~~Gráfico de evolução no /profile~~ → **implementado em 2026-06-30** — `HistoryChart` SVG inline (sem biblioteca externa); endpoint `GET /api/players/{id}/history` via `ranking_service.get_player_match_history`; exibe HLTV Rating por partida em ordem cronológica; visível quando há ≥2 partidas
+- [x] ~~Favicon ausente~~ → **implementado em 2026-06-30** — `docs/eve.png` copiado para `frontend/public/favicon.png`; `index.html` atualizado com `<link rel="icon" type="image/png">` + `<link rel="apple-touch-icon">`
+- [x] ~~Orphan files~~ → **deletados em 2026-06-30** — `backend/routers/matches.py`, `players.py`, `ranking.py` (0 bytes cada) removidos
+- [x] ~~Bug 30 — Demos gzip do CS2~~ → **resolvido em 2026-06-30** — magic bytes corrigido `HL2DEMO\x00` → `PBDEMS2\x00`; `_decompress_if_needed()` em `routers/demo.py` detecta `\x1f\x8b` e descomprime com `gzip.decompress()` antes de passar pro parser. Verificado nos 3 demos do grupo.
+- [x] ~~Segurança — server header vaza versão~~ → **resolvido** — middleware `security_headers` em `main.py` remove `server` header + adiciona X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS (prod only)
+- [x] ~~Segurança — audit logs ausentes~~ → **resolvido** — `auth.py` loga `LOGIN_OK`/`LOGIN_FAIL`/`LOGOUT`/`SENHA_ALTERADA` com `player_id`, `nickname`, `ip` via `logging`
+- [x] ~~Export de dados para planilha~~ → **implementado** — `GET /api/export` → `StreamingResponse` com arquivo `.xlsx` (4 abas: Ranking, Stats Completas, Histórico, Head-to-Head); `EXPORTAR` button na página `/ranking`; usa `openpyxl`, paleta EverestFrags
+- [x] ~~Sistema de vitórias~~ → **implementado** — tabela `player_wins` (wins/losses/streak/max_streak/points); `POST /api/matches/{id}/result` (admin) registra resultado; `GET /api/wins/ranking` (público); `GET /api/players/{id}/wins`; página `/wins` com tabela de classificação; botão "REGISTRAR RESULTADO" em `/matches/:id`; link "Vitórias" no Navbar
+- [x] ~~IA — Coach individual~~ → **implementado** — `GET /api/players/{id}/coach`; service `ai_service.py` com Groq (Llama 3.1 70B); card colapsável "COACH IA" no `/profile`; degrada graciosamente se `GROQ_API_KEY` ausente
+- [x] ~~IA — Narrativa da partida~~ → **implementado** — `GET /api/matches/{id}/narrative`; card colapsável "NARRATIVA IA" em `/matches/:id`
+- [x] ~~IA — Previsão de forma pré-sorteio~~ → **implementado** — `POST /api/sort/prediction` com lista de player_ids; card "FORMA DO DIA" no `/sort` (colapsável abaixo do botão SORTEAR)
+- [x] ~~IA — Digest semanal~~ → **implementado** — `POST /api/ai/digest` (admin only); botão "GERAR DIGEST" na página `/admin`; top 5, partidas da semana, melhor performance
+- [x] ~~Sistema de XP e níveis~~ → **implementado** — calculado on-the-fly em `ranking_service.py` (sem coluna no DB — retroativo automático); fórmula: kills×10 + assists×5 + opening_kills×20 + trade_kills×10 + flash_assists×5 + mvps×15 + partidas×50 + bônus de rating por partida; 7 níveis: Recruta/Soldado/Veterano/Elite/Atirador/Lenda/Imortal; badge dourado no PodiumCard, RankCard e perfil
 
-> **Migração:** desde esta rodada, mudanças de schema passam por Alembic (`cd backend && alembic revision --autogenerate -m "..."` → revisar o arquivo gerado em `alembic/versions/` → `alembic upgrade head`). O banco local já tem as colunas `disadvantage_kills`, `advantage_kills`, `eco_kills` em `player_match_stats` e a tabela `chat_messages` — quem clonar o repo do zero recebe tudo via `create_all()` no startup; quem já tinha o banco rodando precisa só do `alembic upgrade head` (é um no-op se já rodou `python seed.py` recentemente, já que a baseline foi stampada refletindo esse schema).
+> **Migração:** desde esta rodada, mudanças de schema passam por Alembic (`cd backend && alembic revision --autogenerate -m "..."` → revisar o arquivo gerado em `alembic/versions/` → `alembic upgrade head`). O banco local já tem as colunas `disadvantage_kills`, `advantage_kills`, `eco_kills`, `opening_deaths`, `mvps` em `player_match_stats` e a tabela `chat_messages` — quem clonar o repo do zero recebe tudo via `create_all()` no startup; quem já tinha o banco rodando precisa só do `alembic upgrade head`.
+
+> **⚠️ Partidas existentes precisam de re-upload:** colunas `opening_deaths` e `mvps` foram adicionadas com `server_default=0`. Qualquer partida cadastrada antes de 2026-06-29 terá `opening_deaths=0` e `mvps=0` até o demo ser re-parseado. Como o `.dem` não é persistido, o re-upload deve ser feito manualmente pelo admin em `/matches/new`.
 
 ---
 
@@ -932,6 +959,40 @@ continua existindo). Adicionado a `UTILITY_METRICS` no ranking (mesmo peso que a
 demais métricas de utility) e exposto no modal de detalhe, em `/metrics` e no
 formulário de `AddMatch`.
 
+### Bug 27 — `round_winner` sempre vazio por tentar `int("CT")` → MVP heurístico nunca funcionava
+`round_end` retorna o campo `winner` como string "CT" ou "T" (não como int team_num como assumido).
+O código fazia `int(winner_raw)` dentro de um try/except — o ValueError era engolido silenciosamente,
+deixando `round_winner` sempre vazio em toda partida. Resultado: o bloco de cálculo de MVPs por
+heurística (`round_kills × round_winner`) nunca rodava; todo jogador tinha `mvps=0` para sempre.
+**Causa secundária:** demoparser2 não expõe o evento `round_mvp` em demos CS2 (testado com
+`list_game_events()` — o evento simplesmente não existe no formato atual de demo do jogo). O `round_mvp`
+que o jogo mostra no placar é calculado pelo cliente CS2, não gravado como evento discreto no demo.
+**Fix:** mapeamento explícito `_WINNER_TEAM = {"CT": 3, "T": 2}` aplicado na construção de
+`round_winner`; `round_dmg` movido para antes do loop de hurt (estava sendo usado antes de ser declarado);
+fallback do evento `round_mvp` mantido no código (caso uma versão futura do demoparser2 ou outro
+formato de demo passe a expô-lo).
+
+### Bug 28 — `round_dmg` usado no loop de hurt antes de ser declarado
+Introduzido na sessão anterior: `round_dmg` foi adicionado ao loop de hurt para rastrear dano por round
+(usado como desempate no cálculo de MVP), mas sua declaração `round_dmg: dict[int, dict[str, int]] = {}`
+ficou no bloco de step 6 (loop de kills), que roda DEPOIS do loop de hurt.
+Resultado: `UnboundLocalError: cannot access local variable 'round_dmg'` ao processar qualquer demo.
+**Fix:** declaração de `round_dmg` movida para antes do loop de hurt; comentário explicativo adicionado.
+
+### Bug 29 — Stats assimétricas em demos com `mp_restartgame` (ex: de_train)
+Quando um servidor executa `mp_restartgame`, o campo `total_rounds_played` dos eventos
+player_death/player_hurt/item_purchase reseta para 0. O parser processava TODOS os eventos do
+demo sem detectar esse reset — rounds 0, 1, 2... apareciam duas vezes (pré e pós-restart),
+e como cada sequência tinha jogadores diferentes nos mesmos round numbers, os stats ficavam
+assimétricos: alguns players com kills inflados, outros com mortes infladas, sem correspondência
+entre totais de kills e mortes na partida. Descoberto no de_train com restart na metade.
+**Fix:** `demo_service.py` ordena os kills por tick e detecta quando `total_rounds_played` cai
+(qualquer valor < máximo visto até então = restart). Determina o `_restart_tick` do último reset
+e descarta todos os eventos com `tick < _restart_tick` — aplica nos 4 loops: `hurt_rows`,
+`round_records`, `flash_df`, `purchase_df`. O retorno da API inclui um aviso em `errors[]`
+quando um restart é detectado. Partidas sem restart: `_restart_tick = 0`, nenhum evento
+descartado (zero impacto em demos normais).
+
 ### Bug 26 — Fix do Bug 22 (eixo "trade" duplicado no radar) não chegou em `PodiumCard.tsx`
 O Bug 22 documentava a troca de `trade={entry.score_duel}` (idêntico ao eixo `openK`, mesmo
 valor repetido em 2 pontas do hexágono) por `trade={Math.min(entry.kd_ratio * 33, 100)}` em
@@ -944,3 +1005,18 @@ do pódio com o modal de detalhe lado a lado. **Fix:** `trade={Math.min(entry.kd
 100)}` aplicado em `PodiumCard.tsx` também. Lição: quando um bugfix é descrito como "aplicado
 em N arquivos", checar os N arquivos de fato, não assumir que documentar já implica que todos
 foram tocados.
+
+### Bug 30 — Demos gzip do CS2 interpretados como `UnknownDemoCmd(7991)` pelo demoparser2
+Em alguma atualização de 2025, o CS2 passou a gzip-ar demos antes de gravá-los no disco.
+Os arquivos `.dem` continuaram com a extensão `.dem`, mas o conteúdo é um arquivo gzip válido
+(magic bytes `\x1f\x8b`) em vez de `PBDEMS2\x00` direto. Quando `demoparser2` recebia esses
+bytes gzip, interpretava o byte `\x1f` (=31) como um comando desconhecido e estourava com
+`UnknownDemoCmd(7991)` — o número bizarro vem de como os bytes gzip são lidos como varint.
+Além disso, a checagem de magic bytes adicionada na sprint de segurança usava `HL2DEMO\x00`
+(magic do CS:GO/Source 1) em vez de `PBDEMS2\x00` (magic do CS2/Source 2), bloqueando 100%
+dos uploads com erro 400 antes mesmo de chegar no parser. **Fix (duas partes):**
+1. Magic bytes corrigido para `PBDEMS2\x00` em `routers/demo.py`
+2. Função `_decompress_if_needed()` adicionada ao mesmo arquivo: detecta `\x1f\x8b` (gzip)
+   e descomprime com `gzip.decompress()` antes de passar pro parser; demos PBDEMS2 direto
+   passam sem alteração. Verificado contra os 3 demos do grupo: anubis (gzip 132MB→210MB
+   descomprimido), NUKE (PBDEMS2 direto 271MB) e TRAIN (gzip 173MB→280MB) — todos OK.

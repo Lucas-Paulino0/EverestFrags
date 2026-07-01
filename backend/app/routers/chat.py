@@ -14,7 +14,6 @@ Formato de mensagem (JSON):
 """
 
 import json
-import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from time import time
@@ -22,6 +21,8 @@ from typing import Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from jose import JWTError, jwt
+
+from app.services.auth_service import SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -40,10 +41,8 @@ _connections: Dict[int, tuple] = {}
 
 
 def _decode_token(token: str) -> dict | None:
-    secret = os.getenv("SECRET_KEY", "")
-    algo = os.getenv("ALGORITHM", "HS256")
     try:
-        return jwt.decode(token, secret, algorithms=[algo])
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
 

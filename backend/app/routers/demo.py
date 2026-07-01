@@ -14,10 +14,11 @@ POST /api/demo/parse  → recebe .dem, retorna stats dos jogadores
 """
 
 import logging
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.limiter import limiter
 from app.services.auth_service import require_admin
 from app.services.player_service import get_or_create_by_steam
 from app.models.player import Player
@@ -27,10 +28,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
 MAX_SIZE_MB = 750
+_PBDEMS2_MAGIC = b"PBDEMS2\x00"  # CS2 (Source 2) demos
+_GZIP_MAGIC = b"\x1f\x8b"       # CS2 passou a compactar demos com gzip em 2025
+
+
+def _decompress_if_needed(content: bytes) -> bytes:
+    """Descomprime o demo se estiver em formato gzip; retorna como estava caso contrário."""
+    if len(content) >= 2 and content[:2] == _GZIP_MAGIC:
+        import gzip
+        return gzip.decompress(content)
+    return content
 
 
 @router.post("/parse")
+@limiter.limit("3/minute")
 async def parse_demo(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _admin: Player = Depends(require_admin),
@@ -42,6 +55,15 @@ async def parse_demo(
         content = await file.read()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ler arquivo: {e}")
+
+    # Descomprime se necessário (CS2 passou a gzip-ar demos em 2025)
+    try:
+        content = _decompress_if_needed(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Falha ao descomprimir demo: {e}")
+
+    if len(content) < 8 or content[:8] != _PBDEMS2_MAGIC:
+        raise HTTPException(status_code=400, detail="Arquivo inválido: magic bytes não correspondem a um demo do CS2 (PBDEMS2)")
 
     size_mb = len(content) / (1024 * 1024)
     if size_mb > MAX_SIZE_MB:

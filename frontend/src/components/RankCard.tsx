@@ -9,10 +9,12 @@ import { type RankingEntry } from "../api/client";
 interface RankCardProps {
   entry: RankingEntry;
   compact?: boolean;
+  index?: number;
   onClick?: () => void;
 }
 
-export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
+export function RankCard({ entry, compact = false, index = 0, onClick }: RankCardProps) {
+  const delayClass = index <= 12 ? `ef-delay-${index}` : "";
   const scoreW = `${Math.round(entry.score_final)}%`;
   const combatW = `${Math.round(entry.score_combat)}%`;
   const duelW   = `${Math.round(entry.score_duel)}%`;
@@ -22,6 +24,7 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
     return (
       <div
         onClick={onClick}
+        className={`ef-fade-in ${delayClass}`}
         style={{
           display: "flex", alignItems: "center", gap: 16,
           padding: "13px 18px", borderBottom: "1px solid #141b23",
@@ -68,7 +71,7 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
   }
 
   return (
-    <div onClick={onClick} style={{ border: "1px solid #172029", background: "#0e141b", padding: 16, cursor: onClick ? "pointer" : undefined }}>
+    <div onClick={onClick} className={`ef-fade-in ${delayClass}`} style={{ border: "1px solid #172029", background: "#0e141b", padding: 16, cursor: onClick ? "pointer" : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 14 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 15, color: "#404e60", width: 26 }}>
           {entry.rank}
@@ -89,8 +92,13 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
           }}>
             {entry.player_display_name || entry.player_nickname}
           </div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#475569" }}>
-            K/D {entry.kd_ratio.toFixed(2)}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#475569" }}>
+              K/D {entry.kd_ratio.toFixed(2)}
+            </span>
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 9, letterSpacing: "0.5px", color: "#8a6500", background: "rgba(224,168,46,.08)", border: "1px solid rgba(224,168,46,.2)", padding: "0px 4px" }}>
+              {entry.level_name.toUpperCase()}
+            </span>
           </div>
         </div>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 24, color: "#f0f0f0" }}>
@@ -100,7 +108,7 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
 
       {/* Score bar */}
       <div style={{ height: 4, background: "#151d26", marginBottom: 12 }}>
-        <div style={{ height: "100%", background: "linear-gradient(90deg,#0e7490,#6366f1)", width: scoreW }} />
+        <div className="ef-bar-grow" style={{ height: "100%", background: "linear-gradient(90deg,#0e7490,#6366f1)", width: scoreW }} />
       </div>
 
       {/* Category bars mini */}
@@ -113,7 +121,7 @@ export function RankCard({ entry, compact = false, onClick }: RankCardProps) {
           <div key={ci} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 5, height: 5, background: c.color, borderRadius: "50%", flexShrink: 0 }} />
             <div style={{ flex: 1, height: 3, background: "#141b23" }}>
-              <div style={{ height: "100%", background: c.color, width: c.width }} />
+              <div className="ef-bar-grow" style={{ height: "100%", background: c.color, width: c.width }} />
             </div>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#6a7a8d", width: 18, textAlign: "right" }}>
               {c.score}

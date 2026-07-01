@@ -14,7 +14,13 @@ load_dotenv()
 
 # Lê a URL do banco de dados da variável de ambiente
 # Formato esperado: postgresql://user:password@host:port/dbname
-DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/everestfrags")
+_db_url = os.environ.get("DATABASE_URL")
+if not _db_url:
+    raise RuntimeError(
+        "DATABASE_URL não definida no ambiente. "
+        "Configure no .env ou nas variáveis de ambiente do servidor."
+    )
+DATABASE_URL: str = _db_url
 
 # Cria a engine do SQLAlchemy com pool de conexões
 # pool_pre_ping=True verifica se a conexão ainda está ativa antes de usá-la

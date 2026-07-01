@@ -14,7 +14,7 @@ import { PlayerDetailModal } from "../components/PlayerDetailModal";
 type MetricKey =
   | "kills" | "deaths" | "assists" | "damage_total" | "adr" | "adr_difference"
   | "hltv_rating" | "kast_percent" | "disadvantage_kills" | "advantage_kills" | "eco_kills"
-  | "opening_kills" | "trade_kills" | "trade_denials" | "time_to_kill_ms"
+  | "opening_kills" | "opening_deaths" | "mvps" | "trade_kills" | "trade_denials" | "time_to_kill_ms"
   | "flash_assists" | "grenade_damage" | "he_enemies_hit" | "fire_enemies_hit" | "fire_damage";
 
 type Category = "combat" | "duel" | "utility";
@@ -43,6 +43,8 @@ const METRICS: MetricDef[] = [
   { key: "advantage_kills",     label: "VANTAGEM K",     category: "combat", format: v => String(v) },
   { key: "eco_kills",           label: "ECO KILLS",      category: "combat", format: v => String(v) },
   { key: "opening_kills",       label: "OPENING KILLS",  category: "duel", format: v => String(v) },
+  { key: "opening_deaths",      label: "OPENING DEATHS", category: "duel", inverted: true, format: v => String(v) },
+  { key: "mvps",                label: "MVPs",           category: "duel", format: v => String(v) },
   { key: "trade_kills",         label: "TRADE KILLS",    category: "duel", format: v => String(v) },
   { key: "trade_denials",       label: "TRADE DENIALS",  category: "duel", format: v => String(v) },
   { key: "time_to_kill_ms",     label: "TTK (MS)",       category: "duel", inverted: true, format: v => v.toFixed(0) },

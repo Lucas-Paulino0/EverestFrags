@@ -1,12 +1,9 @@
 /**
  * Página /auth/callback — processa o retorno do Login com Steam
  *
- * O backend redireciona para esta rota após autenticar com a Steam OpenID.
- * Query params esperados:
- *   token  → JWT gerado pelo backend
- *   player → JSON URL-encoded com id, nickname, role, avatar_initials
- *
- * Caso os params estejam ausentes (acesso direto ou erro), redireciona para /login.
+ * O backend redireciona para esta rota com ?code=UUID (código opaco de 30s).
+ * O código é trocado pelo JWT via POST /api/auth/steam/exchange — o token
+ * nunca aparece na URL, evitando exposição em logs de servidor.
  */
 
 import { useEffect } from "react";
@@ -20,22 +17,30 @@ export function SteamCallback() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const playerRaw = params.get("player");
+    const code = params.get("code");
 
-    if (!token || !playerRaw) {
+    if (!code) {
       navigate("/login");
       return;
     }
 
-    try {
-      const player: PlayerPublic = JSON.parse(decodeURIComponent(playerRaw));
-      loginWithToken(token, player);
-      navigate("/", { replace: true });
-    } catch {
-      // JSON inválido ou token corrompido
-      navigate("/login?error=steam_auth_failed", { replace: true });
-    }
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    fetch(`${apiBase}/api/auth/steam/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("exchange failed");
+        return res.json();
+      })
+      .then(({ access_token, player }: { access_token: string; player: PlayerPublic }) => {
+        loginWithToken(access_token, player);
+        navigate("/", { replace: true });
+      })
+      .catch(() => {
+        navigate("/login?error=steam_auth_failed", { replace: true });
+      });
   }, []);
 
   return (
@@ -50,7 +55,6 @@ export function SteamCallback() {
         gap: 16,
       }}
     >
-      {/* Spinner simples */}
       <div
         style={{
           width: 36,

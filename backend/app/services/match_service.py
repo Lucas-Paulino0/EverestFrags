@@ -104,9 +104,11 @@ def create_match(db: Session, data: MatchCreate) -> Match:
             advantage_kills=ps.advantage_kills,
             eco_kills=ps.eco_kills,
             opening_kills=ps.opening_kills,
+            opening_deaths=ps.opening_deaths,
             trade_kills=ps.trade_kills,
             trade_denials=ps.trade_denials,
             time_to_kill_ms=ps.time_to_kill_ms,
+            mvps=ps.mvps,
             flash_assists=ps.flash_assists,
             grenade_damage=ps.grenade_damage,
             he_enemies_hit=ps.he_enemies_hit,
@@ -158,8 +160,8 @@ def get_head_to_head(db: Session, player_id: int, opponent_id: int) -> HeadToHea
     player_kills/opponent_kills/flash_assists vêm só de PlayerVsPlayerStats
     (só existe linha quando há pelo menos 1 kill ou flash entre os dois).
     """
-    player = db.query(Player).filter(Player.id == player_id).first()
-    opponent = db.query(Player).filter(Player.id == opponent_id).first()
+    player = db.query(Player).filter(Player.id == player_id, Player.is_active == True).first()  # noqa: E712
+    opponent = db.query(Player).filter(Player.id == opponent_id, Player.is_active == True).first()  # noqa: E712
     if not player or not opponent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Jogador não encontrado")
 

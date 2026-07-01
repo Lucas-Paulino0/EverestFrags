@@ -32,6 +32,8 @@ const STAT_COLS: { key: keyof PlayerStatsCreate; label: string; min: number; max
   { key: "advantage_kills", label: "ADVTG K", min: 0, max: 30, step: 1 },
   { key: "eco_kills", label: "ECO K", min: 0, max: 30, step: 1 },
   { key: "opening_kills", label: "OPEN K", min: 0, max: 20, step: 1 },
+  { key: "opening_deaths", label: "OPEN D", min: 0, max: 20, step: 1 },
+  { key: "mvps", label: "MVP", min: 0, max: 30, step: 1 },
   { key: "trade_kills", label: "TRADE", min: 0, max: 20, step: 1 },
   { key: "trade_denials", label: "T.DENIAL", min: 0, max: 20, step: 1 },
   { key: "time_to_kill_ms", label: "TTK(ms)", min: 0, max: 2000, step: 1 },
@@ -48,7 +50,7 @@ function emptyRow(playerId: number, selected = false): StatRow {
     kills: 0, deaths: 0, assists: 0, damage_total: 0,
     adr: 0, adr_difference: 0, hltv_rating: 0, kast_percent: 0,
     disadvantage_kills: 0, advantage_kills: 0, eco_kills: 0,
-    opening_kills: 0, trade_kills: 0, trade_denials: 0, time_to_kill_ms: 0,
+    opening_kills: 0, opening_deaths: 0, mvps: 0, trade_kills: 0, trade_denials: 0, time_to_kill_ms: 0,
     flash_assists: 0, grenade_damage: 0, he_enemies_hit: 0, fire_enemies_hit: 0, fire_damage: 0,
   };
 }
@@ -78,6 +80,8 @@ function buildRows(ps: PlayerResponse[], demoPlayers?: DemoPlayerStat[]): StatRo
       advantage_kills: match.advantage_kills ?? 0,
       eco_kills: match.eco_kills ?? 0,
       opening_kills: match.opening_kills ?? 0,
+      opening_deaths: match.opening_deaths ?? 0,
+      mvps: match.mvps ?? 0,
       trade_kills: match.trade_kills ?? 0,
       trade_denials: match.trade_denials ?? 0,
       time_to_kill_ms: match.time_to_kill_ms ?? 0,

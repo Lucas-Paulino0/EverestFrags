@@ -11,7 +11,7 @@ PaginatedMatchResponse → wrapper paginado para GET /api/matches
 
 from datetime import datetime, date
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PlayerStatsCreate(BaseModel):
@@ -34,10 +34,14 @@ class PlayerStatsCreate(BaseModel):
 
     # Duelos
     opening_kills: int = Field(0, ge=0)
+    opening_deaths: int = Field(0, ge=0)
     trade_kills: int = Field(0, ge=0)
     trade_denials: int = Field(0, ge=0)
     # TTK em milissegundos — 0 significa sem dados
     time_to_kill_ms: int = Field(0, ge=0)
+
+    # MVP (rounds com mais kills do time vencedor)
+    mvps: int = Field(0, ge=0)
 
     # Utility
     flash_assists: int = Field(0, ge=0)
@@ -65,9 +69,11 @@ class PlayerStatsInMatch(BaseModel):
     advantage_kills: int
     eco_kills: int
     opening_kills: int
+    opening_deaths: int
     trade_kills: int
     trade_denials: int
     time_to_kill_ms: int
+    mvps: int
     flash_assists: int
     grenade_damage: int
     he_enemies_hit: int
@@ -92,7 +98,14 @@ class MatchCreate(BaseModel):
     scope_url: Optional[str] = Field(None, description="URL do scope.gg para referência")
     played_at: date = Field(..., description="Data em que a partida foi jogada")
     map_name: Optional[str] = Field(None, max_length=50, description="Ex: de_dust2")
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("scope_url")
+    @classmethod
+    def validate_scope_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith(("http://", "https://")):
+            raise ValueError("scope_url deve começar com http:// ou https://")
+        return v
     # Lista de jogadores com suas stats — mínimo 1
     players: List[PlayerStatsCreate] = Field(..., min_length=1)
     # Confrontos diretos — opcional, só vem preenchido quando a partida é

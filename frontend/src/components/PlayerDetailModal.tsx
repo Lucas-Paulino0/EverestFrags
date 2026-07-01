@@ -34,7 +34,7 @@ const WEIGHT_UTILITY = 0.34;
 
 // Métricas onde menor valor é melhor — usado tanto na frase automática quanto
 // na cor do indicador ▲/▼ da grade (mesma lista de INVERTED_METRICS do backend).
-const INVERTED_KEYS = new Set<keyof RankingEntry>(["deaths", "time_to_kill_ms"]);
+const INVERTED_KEYS = new Set<keyof RankingEntry>(["deaths", "time_to_kill_ms", "opening_deaths"]);
 
 // Métricas usadas pra eleger destaque/ponto fraco do player dentro do grupo.
 // `inverted: true` = menor valor é melhor (deaths, TTK).
@@ -43,6 +43,8 @@ const JUDGABLE_METRICS: { key: keyof RankingEntry; label: string; inverted?: boo
   { key: "adr", label: "ADR" },
   { key: "kast_percent", label: "KAST%" },
   { key: "opening_kills", label: "OPENING KILLS" },
+  { key: "opening_deaths", label: "OPENING DEATHS", inverted: true },
+  { key: "mvps", label: "MVPs" },
   { key: "trade_kills", label: "TRADE KILLS" },
   { key: "trade_denials", label: "TRADE DENIALS" },
   { key: "flash_assists", label: "FLASH ASSISTS" },
@@ -70,6 +72,8 @@ const GLOSSARY: { label: string; desc: string }[] = [
   { label: "DESVANTAGEM K", desc: "Kill feito em desvantagem numérica no round" },
   { label: "VANTAGEM K", desc: "Kill feito em vantagem numérica no round" },
   { label: "OPENING KILLS", desc: "Primeiro kill do round — abre vantagem numérica" },
+  { label: "OPENING DEATHS", desc: "Primeira morte do round — menor é melhor" },
+  { label: "MVPs", desc: "Rounds com mais kills do time vencedor (desempate por dano)" },
   { label: "TRADE KILLS", desc: "Vingança: matou quem matou um aliado, em até 5s" },
   { label: "TRADE DENIALS", desc: "Impediu que o inimigo vingasse um aliado em até 5s" },
   { label: "TTK (MS)", desc: "Tempo médio entre kills do jogador, em milissegundos (menor é melhor)" },
@@ -115,6 +119,8 @@ export function PlayerDetailModal({ entry, allEntries, onClose }: PlayerDetailMo
       color: "#6366f1",
       stats: [
         { label: "OPENING KILLS", value: String(entry.opening_kills), key: "opening_kills" },
+        { label: "OPENING DEATHS", value: String(entry.opening_deaths), key: "opening_deaths" },
+        { label: "MVPs", value: String(entry.mvps), key: "mvps" },
         { label: "TRADE KILLS", value: String(entry.trade_kills), key: "trade_kills" },
         { label: "TRADE DENIALS", value: String(entry.trade_denials), key: "trade_denials" },
         { label: "TTK (MS)", value: entry.time_to_kill_ms.toFixed(0), key: "time_to_kill_ms" },

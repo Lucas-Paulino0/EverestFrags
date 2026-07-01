@@ -4,7 +4,7 @@ demo_service — parse leve de .dem do CS2
 Estratégia de memória:
   1. Salva bytes em arquivo temporário
   2. Parseia APENAS os eventos necessários (player_death, player_hurt, round_end,
-     player_blind, item_purchase)
+     player_blind, item_purchase, round_mvp)
   3. Deleta o arquivo temporário imediatamente após o parse dos eventos
   4. Agrega métricas em memória (dicts leves, sem DataFrames)
   5. Retorna apenas as stats computadas
@@ -71,12 +71,16 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             raise RuntimeError(f"Falha ao ler kills do demo: {e}")
 
         try:
-            hurt_df = parser.parse_event("player_hurt", player=["team_num", "steamid"])
+            hurt_df = parser.parse_event(
+                "player_hurt",
+                player=["team_num", "steamid"],
+                other=["total_rounds_played"],
+            )
         except Exception as e:
             errors.append(f"Eventos de dano indisponíveis: {e}")
 
         try:
-            rounds_df = parser.parse_event("round_end")
+            rounds_df = parser.parse_event("round_end", other=["total_rounds_played"])
         except Exception as e:
             errors.append(f"Eventos de round indisponíveis: {e}")
 
@@ -93,6 +97,11 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             purchase_df = parser.parse_event("item_purchase", other=["total_rounds_played"])
         except Exception as e:
             errors.append(f"Eventos de compra indisponíveis: {e}")
+
+        try:
+            mvp_df = parser.parse_event("round_mvp", player=["steamid"])
+        except Exception:
+            mvp_df = None  # fallback para heurística de kills/dano
 
     finally:
         # ── 3b. Descarta o arquivo imediatamente ──────────────────────────────
@@ -127,6 +136,7 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             atk_steamid = _s(row.get("attacker_steamid"))
             vic_steamid = _s(row.get("user_steamid"))
             asst_steamid = _s(row.get("assister_steamid"))
+            rnd = row.get("total_rounds_played")
             kills.append({
                 "tick":         row.get("tick") or 0,
                 "attacker":     _key(atk_steamid, atk_name),
@@ -134,28 +144,119 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
                 "assister":     _key(asst_steamid, asst_name),
                 "atk_team":     row.get("attacker_X_team_num") or row.get("attacker_team_num"),
                 "vic_team":     row.get("user_X_team_num") or row.get("user_team_num"),
-                "round":        row.get("total_rounds_played") or -1,
+                # `or -1` quebrava o round 0 (0 é falsy em Python — virava -1, "round
+                # desconhecido"), fazendo a morte/kill do round 0 desaparecer do
+                # round certo: inflava o KAST de todo mundo (a "morte" ficava
+                # invisível pro contador de "sobreviveu") e sempre comia o
+                # opening_kill/opening_death do round 0 da partida.
+                "round":        rnd if rnd is not None else -1,
             })
     del kills_df
 
+    # ── Detecta reinício de partida (mp_restartgame) ──────────────────────────
+    # total_rounds_played no player_death reseta para 0 quando o servidor executa
+    # mp_restartgame. Sem este filtro, os rounds pré-restart são somados com os
+    # pós-restart — jogadores acumulam kills/mortes de duas sequências de rounds
+    # diferentes, causando stats assimétricas (ex: de_train com restart na metade).
+    # Fix: ordena kills por tick e detecta quando total_rounds_played cai;
+    # descarta tudo que veio antes do último reset.
+    kills.sort(key=lambda k: k["tick"])
+    _restart_tick: int = 0
+    _max_rnd_seen: int = -1
+    for _k in kills:
+        _rnd = _k.get("round")
+        if _rnd is None or _rnd < 0:
+            continue
+        if _max_rnd_seen >= 0 and _rnd < _max_rnd_seen:
+            # total_rounds_played voltou para trás → mp_restartgame detectado
+            _restart_tick = _k["tick"]
+            _max_rnd_seen = _rnd
+        else:
+            _max_rnd_seen = max(_max_rnd_seen, _rnd)
+    if _restart_tick > 0:
+        _before = len(kills)
+        kills = [k for k in kills if k["tick"] >= _restart_tick]
+        errors.append(
+            f"Reinício de partida detectado (tick {_restart_tick}) — "
+            f"{_before - len(kills)} kills anteriores descartados."
+        )
+
+    # round_dmg: acumulado de dano por (round, player) — usado só no fallback MVP.
+    # Declarado aqui porque o loop de hurt popula este dict antes do loop de kills.
+    round_dmg: dict[int, dict[str, int]] = {}
+
+    # dmg_health de cada player_hurt NÃO é capado pela vida restante da vítima — o
+    # hit que mata reporta o dano "teórico" da arma, não o quanto de HP realmente
+    # sobrava (ex: jogador com 25 de vida leva um tiro de 75, e o evento ainda
+    # mostra dmg_health=75 mesmo só "removendo" 25). Isso inflava ADR/dano de quem
+    # dá mais kills com overkill (rifle/headshot), de forma desigual entre players
+    # — confirmado comparando tick a tick contra o campo `health` (pós-hit) do
+    # próprio evento num demo real. Fix: reconstrói o HP de cada vítima rodada a
+    # rodada (sempre reseta pra 100 num round novo) e credita só
+    # health_antes - health_depois, nunca o dmg_health bruto do evento.
     hurt: list[dict] = []
     if hurt_df is not None and not hurt_df.empty:
-        for row in hurt_df.to_dicts() if hasattr(hurt_df, "to_dicts") else hurt_df.to_dict("records"):
+        hurt_rows = hurt_df.to_dicts() if hasattr(hurt_df, "to_dicts") else hurt_df.to_dict("records")
+        hurt_rows.sort(key=lambda r: r.get("tick") or 0)
+
+        hp_state: dict[str, int] = {}     # vítima -> HP atual conhecido
+        hp_round: dict[str, int] = {}     # vítima -> round do último hit registrado
+
+        for row in hurt_rows:
+            if _restart_tick and (row.get("tick") or 0) < _restart_tick:
+                continue
             atk_name = _s(row.get("attacker_name"))
             atk = _key(_s(row.get("attacker_steamid")), atk_name)
-            dmg = row.get("dmg_health") or 0
+            vic_name = _s(row.get("user_name"))
+            vic = _key(_s(row.get("user_steamid")), vic_name)
+            atk_team = row.get("attacker_X_team_num") or row.get("attacker_team_num")
+            vic_team = row.get("user_X_team_num") or row.get("user_team_num")
+            rnd = row.get("total_rounds_played")
             weapon = _s(row.get("weapon")).lower()
-            if atk and dmg:
-                hurt.append({"attacker": atk, "dmg": int(dmg), "weapon": weapon})
+
+            if not vic:
+                continue
+            if hp_round.get(vic) != rnd:
+                hp_round[vic] = rnd
+                hp_state[vic] = 100  # vida cheia no início de cada round
+            health_before = hp_state[vic]
+            health_after = row.get("health")
+            health_after = int(health_after) if health_after is not None else 0
+            real_dmg = max(0, health_before - health_after)
+            hp_state[vic] = health_after
+
+            # Só conta dano em INIMIGO — fogo amigo (mesmo time) e autodano (própria
+            # granada/queda, que sempre cai no mesmo time do atacante) são excluídos,
+            # igual ao ADR oficial do scope.gg/HLTV.
+            if (atk and real_dmg and atk_team is not None and vic_team is not None
+                    and atk_team != vic_team):
+                hurt.append({"attacker": atk, "dmg": real_dmg, "weapon": weapon})
+                rnd_rd = round_dmg.setdefault(rnd if rnd is not None else -1, {})
+                rnd_rd[atk] = rnd_rd.get(atk, 0) + real_dmg
     del hurt_df
 
     # total_rounds via contagem de round_end — mas o round_end do ÚLTIMO round às vezes
     # não é capturado (demo termina logo após o kill decisivo, antes do evento disparar).
     # Sem isso, total_rounds fica menor que o maior índice de round visto nas kills, e
     # kast_percent (e adr) ficam inflados acima de 100% — usa o maior dos dois.
+    # O primeiro round_end do demo às vezes é um registro fantasma (tick=1, sem
+    # `winner`/`reason`, antes da partida começar) — contá-lo infla total_rounds em
+    # +1 e dilui ADR/KAST igualmente para todo mundo na partida.
     total_rounds = 1
+    round_winner: dict[int, int] = {}  # índice_sequencial → team_num do vencedor
+    # round_end retorna winner como string "CT"/"T" — mapeia para team_num int (CT=3, T=2).
+    _WINNER_TEAM = {"CT": 3, "T": 2}
     if rounds_df is not None and not rounds_df.empty:
-        total_rounds = max(len(rounds_df), 1)
+        round_records = rounds_df.to_dicts() if hasattr(rounds_df, "to_dicts") else rounds_df.to_dict("records")
+        if _restart_tick:
+            round_records = [r for r in round_records if (r.get("tick") or 0) >= _restart_tick]
+        real_rounds = [r for r in round_records if _s(r.get("winner"))]
+        total_rounds = max(len(real_rounds), 1)
+        # O N-ésimo round_end real (0-indexado) corresponde ao round N das kills.
+        for i, r in enumerate(real_rounds):
+            team_num = _WINNER_TEAM.get(_s(r.get("winner")))
+            if team_num is not None:
+                round_winner[i] = team_num
     del rounds_df
 
     max_kill_round = max((k["round"] for k in kills if k["round"] is not None and k["round"] >= 0), default=-1)
@@ -166,6 +267,8 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     flash_events: list[dict] = []
     if flash_df is not None and not flash_df.empty:
         for row in flash_df.to_dicts() if hasattr(flash_df, "to_dicts") else flash_df.to_dict("records"):
+            if _restart_tick and (row.get("tick") or 0) < _restart_tick:
+                continue
             atk_sid  = _s(row.get("attacker_steamid"))
             atk_name = _s(row.get("attacker_name"))
             atk      = _key(atk_sid, atk_name) if (atk_sid or atk_name) else None
@@ -188,6 +291,8 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     round_spend: dict[int, dict[str, int]] = {}
     if purchase_df is not None and not purchase_df.empty:
         for row in purchase_df.to_dicts() if hasattr(purchase_df, "to_dicts") else purchase_df.to_dict("records"):
+            if _restart_tick and (row.get("tick") or 0) < _restart_tick:
+                continue
             steamid = _s(row.get("steamid"))
             cost = row.get("cost") or 0
             rnd = row.get("total_rounds_played")
@@ -218,6 +323,20 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
         carried = {p: v for p, v in effective_spend[rnd].items() if p not in died_this}
     del deaths_by_round, carried
 
+    # MVP oficial: evento round_mvp do CS2 → a estrela do placar.
+    # Cada round_mvp dispara uma vez por round com o steamid do MVP.
+    # Se o evento não existir no demo, mvp_counts fica vazio e a heurística é usada.
+    mvp_counts: dict[str, int] = {}
+    _mvp_rows = (mvp_df.to_dicts() if hasattr(mvp_df, "to_dicts")
+                 else mvp_df.to_dict("records") if hasattr(mvp_df, "to_dict")
+                 else mvp_df if isinstance(mvp_df, list) else [])
+    if _mvp_rows:
+        for row in _mvp_rows:
+            sid = _s(row.get("user_steamid") or row.get("user_X_steamid") or "")
+            if sid:
+                mvp_counts[sid] = mvp_counts.get(sid, 0) + 1
+    del mvp_df
+
     # ── 5. Coleta identidades únicas ──────────────────────────────────────────
     player_keys: set[str] = set()
     for k in kills:
@@ -237,6 +356,9 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
     # ── 6. Agrega métricas ────────────────────────────────────────────────────
     seen_opening_rounds: set = set()
     recent_kills: list[dict] = []  # últimos kills (tick, atk_team, vic_team, atk, vic)
+    round_kills: dict[int, dict[str, int]] = {}   # rnd → player_key → nº kills
+    round_team: dict[int, dict[str, int]] = {}    # rnd → player_key → team_num
+    # round_dmg declarado antes do loop de hurt (já foi definido acima)
 
     # Estimativa do tamanho de cada time — usado só pra classificar advantage/
     # disadvantage kills. Assume times parelhos (mix 5v5 padrão do grupo).
@@ -273,6 +395,11 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
             stats[atk]["_ttk_ticks"].append(tick)
             kast_rounds.setdefault(atk, set()).add(rnd)
             _vs_add(atk, vic, "kills")
+            # Tracking por round para MVP
+            if rnd >= 0 and atk_team is not None:
+                rnd_rk = round_kills.setdefault(rnd, {})
+                rnd_rk[atk] = rnd_rk.get(atk, 0) + 1
+                round_team.setdefault(rnd, {})[atk] = atk_team
 
         if vic and vic in stats:
             stats[vic]["deaths"] += 1
@@ -298,11 +425,13 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
         if vic_team is not None:
             alive[vic_team] = max(alive.get(vic_team, team_size) - 1, 0)
 
-        # Opening kills
+        # Opening kills / opening deaths — primeira kill do round
         if rnd >= 0 and rnd not in seen_opening_rounds:
             seen_opening_rounds.add(rnd)
             if atk and atk in stats and atk != vic:
                 stats[atk]["opening_kills"] += 1
+            if vic and vic in stats:
+                stats[vic]["opening_deaths"] += 1
 
         # Trade kills — verifica se victim matou alguém do time do attacker recentemente
         if atk and atk in stats and atk != vic:
@@ -351,7 +480,28 @@ def parse_demo(dem_bytes: bytes) -> dict[str, Any]:
         {"player_steamid": actor, "opponent_steamid": target, **counts}
         for (actor, target), counts in vs_pairs.items()
     ]
-    del flash_events, kills, recent_kills, seen_opening_rounds, died_rounds, alive, round_spend, effective_spend, vs_pairs
+
+    # MVP: usa o evento oficial round_mvp do CS2 (estrela do placar).
+    # Fallback: mais kills do time vencedor por round, desempate por dano.
+    if mvp_counts:
+        for key, count in mvp_counts.items():
+            if key in stats:
+                stats[key]["mvps"] = count
+    else:
+        for rnd, winning_team in round_winner.items():
+            rk = round_kills.get(rnd, {})
+            rt = round_team.get(rnd, {})
+            rd = round_dmg.get(rnd, {})
+            candidates = [
+                (key, cnt) for key, cnt in rk.items()
+                if rt.get(key) == winning_team and key in stats
+            ]
+            if not candidates:
+                continue
+            mvp_key = max(candidates, key=lambda x: (x[1], rd.get(x[0], 0)))[0]
+            stats[mvp_key]["mvps"] += 1
+
+    del flash_events, kills, recent_kills, seen_opening_rounds, died_rounds, alive, round_spend, effective_spend, vs_pairs, round_kills, round_team, round_dmg
 
     # Dano / ADR / Weapon stats
     dmg_totals: dict[str, int] = {}
@@ -434,7 +584,9 @@ def _empty(nickname: str, steam_id: str) -> dict:
         "hltv_rating":       0.0,
         "kast_percent":      0.0,
         "opening_kills":     0,
+        "opening_deaths":    0,
         "trade_kills":       0,
+        "mvps":              0,
         "trade_denials":     0,
         "time_to_kill_ms":   0,
         "flash_assists":     0,

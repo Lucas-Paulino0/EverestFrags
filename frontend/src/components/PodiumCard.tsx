@@ -5,6 +5,7 @@
  *   1º → teal #0e7490 | 2º → indigo #6366f1 | 3º → ouro #e0a82e
  */
 
+import { useEffect, useState } from "react";
 import { type RankingEntry } from "../api/client";
 import { RadarChart } from "./RadarChart";
 import { CategoryBar } from "./CategoryBar";
@@ -15,18 +16,36 @@ const CARD_TOP= ["#04222b", "#0f1033", "#1a1100"];
 const MEDAL   = ["01", "02", "03"];
 const NUM_COL = ["#22d3ee", "#818cf8", "#e8b948"];
 
-interface PodiumCardProps { entry: RankingEntry; onClick?: () => void }
+interface PodiumCardProps { entry: RankingEntry; index?: number; onClick?: () => void }
 
-export function PodiumCard({ entry, onClick }: PodiumCardProps) {
+export function PodiumCard({ entry, index = 0, onClick }: PodiumCardProps) {
   const i = entry.rank - 1;
   const accent    = ACCENT[i]   ?? ACCENT[0];
   const border    = BORDER[i]   ?? BORDER[0];
   const cardTop   = CARD_TOP[i] ?? CARD_TOP[0];
   const numColor  = NUM_COL[i]  ?? NUM_COL[0];
+  const delayClass = `ef-delay-${index + 1}`;
+
+  // Counter animado: sobe de 0 até score_final em 900ms
+  const target = Math.round(entry.score_final);
+  const [displayScore, setDisplayScore] = useState(0);
+  useEffect(() => {
+    const duration = 900;
+    const steps = 40;
+    const interval = duration / steps;
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      setDisplayScore(Math.round(target * (step / steps)));
+      if (step >= steps) clearInterval(timer);
+    }, interval);
+    return () => clearInterval(timer);
+  }, [target]);
 
   return (
     <div
       onClick={onClick}
+      className={`ef-fade-in ${delayClass}`}
       style={{
         flex: 1,
         minWidth: 220,
@@ -63,7 +82,7 @@ export function PodiumCard({ entry, onClick }: PodiumCardProps) {
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 34, lineHeight: 1, color: numColor }}>
-            {Math.round(entry.score_final)}
+            {displayScore}
           </div>
           <div style={{ fontSize: 9, letterSpacing: "2px", color: "#4a5868", marginTop: 2 }}>SCORE</div>
         </div>
@@ -72,8 +91,16 @@ export function PodiumCard({ entry, onClick }: PodiumCardProps) {
       <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, letterSpacing: 0.5, color: "#f0f9ff", marginBottom: 4 }}>
         {entry.player_display_name || entry.player_nickname}
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#566476", marginBottom: 14 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#566476", marginBottom: 6 }}>
         {entry.total_matches} partidas · K/D {entry.kd_ratio.toFixed(2)}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+        <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, letterSpacing: "1px", color: "#e0a82e", background: "rgba(224,168,46,.1)", border: "1px solid rgba(224,168,46,.3)", padding: "1px 7px" }}>
+          {entry.level_name.toUpperCase()}
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#4a5868" }}>
+          {entry.xp_total.toLocaleString()} XP
+        </span>
       </div>
 
       {/* Radar */}

@@ -16,11 +16,12 @@ from pydantic import BaseModel, Field
 class PlayerCreate(BaseModel):
     """Cria um novo jogador. O admin também pode definir a senha inicial."""
 
-    nickname: str = Field(..., min_length=2, max_length=50, description="Nick único do jogador")
-    steam_id: Optional[str] = Field(None, max_length=20)
+    nickname: str = Field(..., min_length=2, max_length=50, pattern=r"^[\w\-. ]{2,50}$", description="Nick único do jogador")
+    steam_id: Optional[str] = Field(None, pattern=r"^\d{17}$")
     avatar_initials: Optional[str] = Field(None, min_length=1, max_length=2)
     # Senha opcional na criação — o próprio jogador pode definir depois via /auth/change-password
-    password: Optional[str] = Field(None, min_length=6, max_length=128)
+    # max_length=72 porque bcrypt trunca silenciosamente acima de 72 bytes
+    password: Optional[str] = Field(None, min_length=6, max_length=72)
     role: str = Field("viewer", pattern="^(admin|viewer)$")
 
 
@@ -32,9 +33,9 @@ class PlayerUpdate(BaseModel):
     require_admin_or_self no router); os demais campos exigem admin.
     """
 
-    nickname: Optional[str] = Field(None, min_length=2, max_length=50)
+    nickname: Optional[str] = Field(None, min_length=2, max_length=50, pattern=r"^[\w\-. ]{2,50}$")
     display_name: Optional[str] = Field(None, max_length=50)
-    steam_id: Optional[str] = Field(None, max_length=20)
+    steam_id: Optional[str] = Field(None, pattern=r"^\d{17}$")
     avatar_initials: Optional[str] = Field(None, min_length=1, max_length=2)
     role: Optional[str] = Field(None, pattern="^(admin|viewer)$")
     is_active: Optional[bool] = None
@@ -54,12 +55,27 @@ class PlayerPublic(BaseModel):
 
 
 class PlayerResponse(BaseModel):
-    """Resposta para listagem de jogadores — sem hash de senha."""
+    """Resposta para listagem de jogadores — sem hash de senha. Usada em rotas de admin."""
 
     id: int
     nickname: str
     display_name: Optional[str] = None
     steam_id: Optional[str] = None
+    avatar_initials: str
+    avatar_url: Optional[str] = None
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PlayerResponsePublic(BaseModel):
+    """Resposta pública de jogador — sem steam_id (privacidade). Usada em rotas GET públicas."""
+
+    id: int
+    nickname: str
+    display_name: Optional[str] = None
     avatar_initials: str
     avatar_url: Optional[str] = None
     role: str
@@ -86,6 +102,7 @@ class PlayerStatsResponse(BaseModel):
     assists: int = 0
     damage_total: int = 0
     opening_kills: int = 0
+    opening_deaths: int = 0
     trade_kills: int = 0
     flash_assists: int = 0
     grenade_damage: int = 0

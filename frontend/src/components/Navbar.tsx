@@ -12,6 +12,9 @@ import {
   PlusCircle,
   LogOut,
   LogIn,
+  Crosshair,
+  Medal,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -50,6 +53,9 @@ export function Navbar() {
   const secondaryItems = [
     { label: "Métricas", path: "/metrics", icon: BarChart3 },
     { label: "Médias", path: "/averages", icon: Gauge },
+    { label: "H2H", path: "/h2h", icon: Crosshair },
+    { label: "Vitórias", path: "/wins", icon: Medal },
+    { label: "Fórmula", path: "/como-funciona", icon: BookOpen },
     ...(player ? [{ label: "Perfil", path: "/profile", icon: CircleUser }] : []),
     ...(isAdmin ? [
       { label: "Gestão", path: "/admin", icon: Settings },

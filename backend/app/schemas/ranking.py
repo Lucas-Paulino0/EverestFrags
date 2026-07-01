@@ -32,8 +32,10 @@ class RankingEntry(BaseModel):
     assists: int = 0
     damage_total: int = 0
     opening_kills: int = 0
+    opening_deaths: int = 0
     trade_kills: int = 0
     trade_denials: int = 0
+    mvps: int = 0
     flash_assists: int = 0
     grenade_damage: int = 0
     he_enemies_hit: int = 0
@@ -59,6 +61,10 @@ class RankingEntry(BaseModel):
     # Score final ponderado (0–100)
     score_final: float = 0.0
 
+    # XP e nível — calculados on-the-fly das métricas brutas (sem coluna no DB)
+    xp_total: int = 0
+    level_name: str = "Recruta"
+
 
 class GroupAveragesResponse(BaseModel):
     """
@@ -81,8 +87,10 @@ class GroupAveragesResponse(BaseModel):
     hltv_rating: float = 0.0
     kast_percent: float = 0.0
     opening_kills: float = 0.0
+    opening_deaths: float = 0.0
     trade_kills: float = 0.0
     trade_denials: float = 0.0
+    mvps: float = 0.0
     time_to_kill_ms: float = 0.0
     flash_assists: float = 0.0
     grenade_damage: float = 0.0

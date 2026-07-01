@@ -33,7 +33,13 @@ from app.models.player import Player
 
 load_dotenv()
 
-SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-insecure-key-change-in-production")
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    raise RuntimeError(
+        "SECRET_KEY não definida no ambiente. "
+        "Gere uma com: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
+SECRET_KEY: str = _secret
 ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 

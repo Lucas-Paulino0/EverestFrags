@@ -131,8 +131,10 @@ export interface RankingEntry {
   assists: number;
   damage_total: number;
   opening_kills: number;
+  opening_deaths: number;
   trade_kills: number;
   trade_denials: number;
+  mvps: number;
   flash_assists: number;
   grenade_damage: number;
   he_enemies_hit: number;
@@ -155,6 +157,10 @@ export interface RankingEntry {
   score_duel: number;
   score_utility: number;
   score_final: number;
+
+  // XP e nível calculados on-the-fly
+  xp_total: number;
+  level_name: string;
 }
 
 export const rankingApi = {
@@ -175,8 +181,10 @@ export interface GroupAveragesResponse {
   hltv_rating: number;
   kast_percent: number;
   opening_kills: number;
+  opening_deaths: number;
   trade_kills: number;
   trade_denials: number;
+  mvps: number;
   time_to_kill_ms: number;
   flash_assists: number;
   grenade_damage: number;
@@ -217,7 +225,7 @@ export interface PlayerResponse {
   id: number;
   nickname: string;
   display_name: string | null;
-  steam_id: string | null;
+  steam_id?: string | null;
   avatar_initials: string;
   avatar_url: string | null;
   role: string;
@@ -254,6 +262,9 @@ export const playersApi = {
     request<{ nickname: string | null; avatar_url: string | null }>(
       `/api/players/steam-lookup?steam_id=${encodeURIComponent(steamId)}`
     ),
+
+  history: (id: number) =>
+    request<PlayerMatchHistory[]>(`/api/players/${id}/history`),
 };
 
 // ─── Matches ────────────────────────────────────────────────────────────────
@@ -272,8 +283,10 @@ export interface PlayerStatsCreate {
   advantage_kills?: number;
   eco_kills?: number;
   opening_kills?: number;
+  opening_deaths?: number;
   trade_kills?: number;
   trade_denials?: number;
+  mvps?: number;
   time_to_kill_ms?: number;
   flash_assists?: number;
   grenade_damage?: number;
@@ -331,9 +344,11 @@ export interface PlayerStatsInMatch {
   advantage_kills: number;
   eco_kills: number;
   opening_kills: number;
+  opening_deaths: number;
   trade_kills: number;
   trade_denials: number;
   time_to_kill_ms: number;
+  mvps: number;
   flash_assists: number;
   grenade_damage: number;
   he_enemies_hit: number;
@@ -389,6 +404,39 @@ export interface SortTeamsResponse {
   algorithm: string;
 }
 
+// ─── Vitórias ────────────────────────────────────────────────────────────────
+
+export interface WinsEntry {
+  rank: number;
+  player_id: number;
+  nickname: string;
+  display_name: string | null;
+  avatar_initials: string;
+  avatar_url: string | null;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  win_streak: number;
+  max_win_streak: number;
+  points: number;
+}
+
+export interface PlayerWinsDetail {
+  wins: number;
+  losses: number;
+  win_rate: number;
+  win_streak: number;
+  max_win_streak: number;
+  points: number;
+  history: Array<{
+    match_id: number;
+    played_at: string;
+    map_name: string | null;
+    team: number;
+    won: boolean;
+  }>;
+}
+
 export const sortApi = {
   sort: (playerIds: number[], teams = 2) =>
     request<SortTeamsResponse>(
@@ -411,9 +459,11 @@ export interface DemoPlayerStat {
   hltv_rating: number;
   kast_percent: number;
   opening_kills: number;
+  opening_deaths: number;
   trade_kills: number;
   trade_denials: number;
   time_to_kill_ms: number;
+  mvps: number;
   flash_assists: number;
   grenade_damage: number;
   he_enemies_hit: number;
@@ -447,6 +497,20 @@ export interface DemoParseResult {
   errors: string[];
 }
 
+// ─── Player history ──────────────────────────────────────────────────────────
+
+export interface PlayerMatchHistory {
+  match_id: number;
+  played_at: string;
+  map_name: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  adr: number;
+  hltv_rating: number;
+  kast_percent: number;
+}
+
 export const demoApi = {
   // Upload multipart — não usa request() porque o Content-Type (boundary)
   // precisa ser definido automaticamente pelo browser, não como JSON.
@@ -471,4 +535,38 @@ export const demoApi = {
     }
     return res.json();
   },
+};
+
+export const winsApi = {
+  ranking: () => request<WinsEntry[]>("/api/wins/ranking"),
+  playerWins: (id: number) => request<PlayerWinsDetail>(`/api/players/${id}/wins`),
+  registerResult: (matchId: number, data: { winning_team: number; team_1_ids: number[]; team_2_ids: number[] }) =>
+    request<{ message: string }>(`/api/matches/${matchId}/result`, { method: "POST", body: JSON.stringify(data) }),
+  removeResult: (matchId: number) =>
+    request<{ message: string }>(`/api/matches/${matchId}/result`, { method: "DELETE" }),
+};
+
+// ─── IA (Groq) ───────────────────────────────────────────────────────────────
+
+export interface AiResponse {
+  text: string | null;
+  unavailable: boolean;
+  reason?: string;
+}
+
+export const aiApi = {
+  coach: (playerId: number) =>
+    request<AiResponse>(`/api/players/${playerId}/coach`),
+
+  narrative: (matchId: number) =>
+    request<AiResponse>(`/api/matches/${matchId}/narrative`),
+
+  prediction: (playerIds: number[]) =>
+    request<AiResponse>("/api/sort/prediction", {
+      method: "POST",
+      body: JSON.stringify({ player_ids: playerIds }),
+    }),
+
+  digest: () =>
+    request<AiResponse>("/api/ai/digest", { method: "POST" }),
 };

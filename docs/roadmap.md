@@ -6,17 +6,15 @@ Planejamento geral do sistema. Auditoria feita em 2026-06-29.
 
 ## 🔴 SEGURANÇA — FASE 1 (urgente, antes de qualquer nova feature)
 
-- [ ] **SECRET_KEY hardcodada com fallback inseguro**
-  - `backend/app/services/auth_service.py:36` → remover fallback `"dev-insecure-key-change-in-production"`
-  - `backend/app/routers/chat.py:43` → remover fallback `""` (string vazia)
-  - Centralizar: `SECRET_KEY = os.environ["SECRET_KEY"]` com `RuntimeError` se ausente
-  - Gerar chave: `python -c "import secrets; print(secrets.token_hex(32))"`
-  - Atualizar no painel do Render
+- [x] **SECRET_KEY hardcodada com fallback inseguro**
+  - `auth_service.py` → `SECRET_KEY = os.environ["SECRET_KEY"]` com `RuntimeError` se ausente
+  - `chat.py` → importa `SECRET_KEY, ALGORITHM` de `auth_service` (não lê env novamente)
+  - Atualizar no painel do Render se a variável ainda não estiver configurada
 
-- [ ] **JWT exposto na URL do callback Steam**
-  - `backend/app/routers/steam_auth.py:98-99` → redirect `?token=JWT` aparece em logs do Render
-  - Fix: padrão de código de troca — salvar JWT em dict com TTL=30s, redirecionar com UUID opaco
-  - Frontend troca UUID por JWT via `POST` antes de armazenar
+- [x] **JWT exposto na URL do callback Steam**
+  - `steam_auth.py` → código de troca: JWT em `_pending_codes` (TTL=30s), redirect usa `?code=UUID`
+  - Novo endpoint `POST /api/auth/steam/exchange` — frontend troca UUID por JWT
+  - `SteamCallback.tsx` → POST para exchange; token nunca aparece em URL/logs
 
 ---
 
@@ -25,37 +23,37 @@ Planejamento geral do sistema. Auditoria feita em 2026-06-29.
 - [ ] Migrar JWT de `localStorage` → cookie `HttpOnly; Secure; SameSite=Strict`
 - [ ] Implementar blacklist de tokens com claim `jti` (tabela `revoked_tokens` no banco)
 - [ ] Claims JWT completos: adicionar `iss`, `aud`, `iat`, `jti`, `type="access"`
-- [ ] Rate limiting com `slowapi`: `POST /api/auth/login` → 5/min, `POST /api/demo/parse` → 3/min
+- [x] Rate limiting com `slowapi`: `POST /api/auth/login` → 5/min, `POST /api/demo/parse` → 3/min
 - [ ] PATCH `/players` com schema de allowlist por role (`PlayerUpdateViewer` vs `PlayerUpdateAdmin`)
-- [ ] Validar formato do `steam_id`: regex `\d{17}` em `players.py:61`
-- [ ] Filtrar players inativos em stats e head-to-head (`player_service.py:29`, `match_service.py:153`)
+- [x] Validar formato do `steam_id`: regex `\d{17}` — `PlayerCreate` e `PlayerUpdate`
+- [x] Filtrar players inativos em stats e head-to-head (`match_service.py` — h2h agora filtra `is_active=True`)
 - [ ] WebSocket: nova conexão não pode substituir sessão ativa silenciosamente (`chat.py:95`)
 
 ---
 
 ## 🟡 SEGURANÇA — FASE 3
 
-- [ ] Security headers middleware (`pip install secure`, uma linha em `main.py`)
-- [ ] Timing attack no login: `_DUMMY_HASH` em `player_service.py:115`
-- [ ] `ProtectedRoute` na rota `/profile` (`App.tsx`)
-- [ ] Upload `.dem`: validar magic bytes (`HL2DEMO`) antes de processar
-- [ ] `scope_url: HttpUrl` + `notes: max_length=2000` em `schemas/match.py`
+- [x] Security headers middleware (`main.py` — middleware manual: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS em prod)
+- [x] Timing attack no login: `_DUMMY_HASH` em `player_service.py` — bcrypt roda mesmo quando nickname não existe
+- [x] `ProtectedRoute` na rota `/profile` (`App.tsx`)
+- [x] Upload `.dem`: validar magic bytes (`HL2DEMO\x00`) antes de processar
+- [x] `scope_url` validator (http/https) + `notes: max_length=2000` em `schemas/match.py`
 - [ ] Limite de conexões WebSocket por IP (máx 3)
-- [ ] Criar `PlayerResponsePublic` sem `steam_id` para rotas públicas
+- [x] Criar `PlayerResponsePublic` sem `steam_id` para rotas públicas (`GET /api/players`, `GET /api/players/{id}`)
 
 ---
 
 ## 🔵 SEGURANÇA — FASE 4
 
 - [ ] Migrar `python-jose` → `PyJWT` (CVE-2024-33664/33663)
-- [ ] Desabilitar `/docs` e `/redoc` em produção
-- [ ] `password max_length=72` (bcrypt trunca acima de 72 bytes)
+- [x] Desabilitar `/docs` e `/redoc` em produção (env var `DEBUG=true` para habilitar em dev)
+- [x] `password max_length=72` (bcrypt trunca acima de 72 bytes) — `schemas/auth.py` e `schemas/player.py`
 - [ ] Nickname com `pattern=r"^[\w\-. ]{2,50}$"`
 - [ ] Logs de auditoria: LOGIN_OK, LOGIN_FAIL, LOGOUT, SENHA_ALTERADA
 - [ ] Remover header `server: uvicorn` (`server_header=False`)
-- [ ] `DATABASE_URL = os.environ["DATABASE_URL"]` sem fallback
+- [x] `DATABASE_URL = os.environ["DATABASE_URL"]` sem fallback (`RuntimeError` se ausente)
 
-> Score atual de segurança: **35/100**. Meta para produção segura: **70+** (Fases 1–3 concluídas).
+> Score atual de segurança: **~68/100** (Fases 1+3 quase completas; F2/F4 parcialmente concluídas). Meta para produção segura: **70+** (Fases 1–3 concluídas).
 
 ---
 
@@ -127,8 +125,8 @@ Fallback: Gemini Flash. Dev local: Ollama.
 ## 🗺️ NOVAS TELAS / FEATURES
 
 ### Já tem dados, só precisa de tela:
-- `/h2h` — head-to-head entre 2 players (API `/vs/{id2}` já existe)
-- Gráfico de evolução histórica no `/profile` (score partida a partida)
+- [x] `/h2h` — head-to-head entre 2 players (página `HeadToHead.tsx` criada, rota `/h2h` em `App.tsx`, link no `Navbar`)
+- [x] Gráfico de evolução histórica no `/profile` — HLTV Rating por partida (`HistoryChart` SVG em `Profile.tsx`, endpoint `GET /api/players/{id}/history`)
 - Performance por mapa no `/profile` (`map_name` já está em cada partida)
 
 ### Features novas:

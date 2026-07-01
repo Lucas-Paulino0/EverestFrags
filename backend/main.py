@@ -35,22 +35,50 @@ Rotas de admin:
   POST /api/demo/parse
 """
 
+import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.database import engine, Base
-from app.routers import auth, players, matches, ranking, sort, steam_auth, chat, demo, stats
+from app.limiter import limiter
+from app.routers import auth, players, matches, ranking, sort, steam_auth, chat, demo, stats, export, wins, ai
+
+logger = logging.getLogger(__name__)
 
 # Importa todos os models para garantir que o create_all os detecte
 import app.models  # noqa: F401
+
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 app = FastAPI(
     title="EverestFrags API",
     description="CS2 Mix Squad Tracker — ranking, partidas e sorteio de times",
     version="1.0.0",
+    docs_url="/docs" if _DEBUG else None,
+    redoc_url="/redoc" if _DEBUG else None,
+    openapi_url="/openapi.json" if _DEBUG else None,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    if not _DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if "server" in response.headers:
+        del response.headers["server"]
+    return response
 
 # CORS — FRONTEND_URL (mesma env var usada pelo redirect do Steam OpenID) é
 # sempre liberada, então trocar o domínio do Vercel não exige redeploy do backend.
@@ -80,6 +108,9 @@ app.include_router(sort.router)
 app.include_router(chat.router)
 app.include_router(demo.router)
 app.include_router(stats.router)
+app.include_router(export.router)
+app.include_router(wins.router)
+app.include_router(ai.router)
 
 
 @app.on_event("startup")

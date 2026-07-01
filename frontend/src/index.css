@@ -68,6 +68,66 @@ input[type=range] { border-radius: 999px; }
 }
 
 /* ==========================================================================
+   Animações globais
+   ========================================================================== */
+
+/* Fade-in simples */
+@keyframes efFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Slide-in da esquerda (times do sorteio) */
+@keyframes efSlideInLeft {
+  from { opacity: 0; transform: translateX(-18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Slide-in da direita */
+@keyframes efSlideInRight {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Barra de progresso que "enche" */
+@keyframes efBarGrow {
+  from { width: 0%; }
+}
+
+/* Glow pulsante (highlight do MVP) */
+@keyframes efPulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 116, 144, 0); }
+  50%       { box-shadow: 0 0 0 4px rgba(14, 116, 144, 0.25); }
+}
+
+/* Spin (loading) */
+@keyframes efSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Classes utilitárias */
+.ef-fade-in          { animation: efFadeIn 0.35s ease-out both; }
+.ef-slide-left       { animation: efSlideInLeft 0.35s ease-out both; }
+.ef-slide-right      { animation: efSlideInRight 0.35s ease-out both; }
+.ef-bar-grow         { animation: efBarGrow 0.8s cubic-bezier(.22,1,.36,1) both; }
+.ef-pulse-glow       { animation: efPulseGlow 2s ease-in-out infinite; }
+.ef-spin             { animation: efSpin 0.7s linear infinite; }
+
+/* Delay helpers para cascata */
+.ef-delay-1  { animation-delay: 60ms; }
+.ef-delay-2  { animation-delay: 120ms; }
+.ef-delay-3  { animation-delay: 180ms; }
+.ef-delay-4  { animation-delay: 240ms; }
+.ef-delay-5  { animation-delay: 300ms; }
+.ef-delay-6  { animation-delay: 360ms; }
+.ef-delay-7  { animation-delay: 420ms; }
+.ef-delay-8  { animation-delay: 480ms; }
+.ef-delay-9  { animation-delay: 540ms; }
+.ef-delay-10 { animation-delay: 600ms; }
+.ef-delay-11 { animation-delay: 660ms; }
+.ef-delay-12 { animation-delay: 720ms; }
+
+/* ==========================================================================
    Tipografia utilitária
    ========================================================================== */
 .font-display { font-family: 'Barlow Condensed', sans-serif; }
@@ -201,9 +261,32 @@ button {
   background: rgba(255, 255, 255, 0.055);
 }
 
+.ig-sidebar-item {
+  position: relative;
+}
+
+.ig-sidebar-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 60%;
+  background: #0e7490;
+  border-radius: 0 3px 3px 0;
+  transition: transform 0.2s cubic-bezier(.22,1,.36,1), opacity 0.2s;
+  opacity: 0;
+}
+
 .ig-sidebar-item.active {
   color: #f8fafc;
   background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(99, 102, 241, 0.14));
+}
+
+.ig-sidebar-item.active::before {
+  transform: translateY(-50%) scaleY(1);
+  opacity: 1;
 }
 
 .ig-sidebar-icon {
@@ -1522,5 +1605,40 @@ body .ig-sidebar {
     max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+  }
+}
+
+
+/* ==========================================================================
+   Responsividade mobile — páginas não-feed (Métricas, Médias, Partidas, etc.)
+   ========================================================================== */
+
+@media (max-width: 820px) {
+  /* Corrige assimetria: left já virava 0 mas right ficava em 48px */
+  .ig-sidebar ~ main,
+  .ig-sidebar + div:not(.ig-page) {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-bottom: 90px !important;
+  }
+
+  /* Headers das páginas internas com logo */
+  header {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Tabelas de stats: scroll horizontal em vez de quebrar o layout */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  /* Pills/botões de filtro de métrica: wrap em vez de transbordar */
+  .ig-sidebar ~ main > div,
+  .ig-sidebar + div:not(.ig-page) > div:first-child {
+    max-width: 100% !important;
   }
 }

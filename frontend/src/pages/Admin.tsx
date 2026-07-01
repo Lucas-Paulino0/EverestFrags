@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { playersApi, matchesApi, type PlayerResponse, type MatchResponse } from "../api/client";
+import { playersApi, matchesApi, aiApi, type PlayerResponse, type MatchResponse } from "../api/client";
 import { Navbar } from "../components/Navbar";
 
 type Tab = "players" | "matches";
@@ -376,6 +376,9 @@ export function Admin() {
   const [matchTotal, setMatchTotal] = useState(0);
   const [loadingMatches, setLoadingMatches] = useState(false);
 
+  const [digestText, setDigestText] = useState<string | null>(null);
+  const [digestLoading, setDigestLoading] = useState(false);
+
   useEffect(() => {
     if (!isLoading && (!player || !isAdmin)) navigate("/");
   }, [player, isAdmin, isLoading, navigate]);
@@ -418,6 +421,19 @@ export function Admin() {
       await matchesApi.delete(id);
       loadMatches(matchPage);
     } catch (e: any) { alert(e.message); }
+  }
+
+  async function handleDigest() {
+    setDigestLoading(true);
+    setDigestText(null);
+    try {
+      const res = await aiApi.digest();
+      setDigestText(res.unavailable ? "// IA indisponível — configure GROQ_API_KEY" : (res.text ?? "// Sem resposta"));
+    } catch (e: any) {
+      setDigestText(`// Erro: ${e.message}`);
+    } finally {
+      setDigestLoading(false);
+    }
   }
 
   if (isLoading || !player || !isAdmin) return null;
@@ -606,6 +622,32 @@ export function Admin() {
             </>
           )
         )}
+        {/* Digest semanal IA */}
+        <div style={{ marginTop: 40, border: "1px solid #1b2530", position: "relative" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#6366f1,transparent)" }} />
+          <div style={{ padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "2px", color: "#818cf8" }}>
+                DIGEST SEMANAL IA
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#3a4d5e", marginTop: 3 }}>
+                resumo da semana — ranking + partidas + melhor performance
+              </div>
+            </div>
+            <button
+              onClick={handleDigest}
+              disabled={digestLoading}
+              style={{ background: digestLoading ? "#22235a" : "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.4)", color: "#818cf8", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "2px", padding: "9px 18px", cursor: digestLoading ? "wait" : "pointer" }}
+            >
+              {digestLoading ? "GERANDO..." : "GERAR DIGEST"}
+            </button>
+          </div>
+          {digestText && (
+            <div style={{ borderTop: "1px solid #1b2530", padding: "16px 22px", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9cadb9", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+              {digestText}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Modal de cadastro */}
