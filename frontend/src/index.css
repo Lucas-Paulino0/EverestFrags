@@ -191,12 +191,9 @@ button {
   display: grid;
   place-items: center;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(99, 102, 241, 0.16));
-  border: 1px solid rgba(34, 211, 238, 0.28);
-  color: #22d3ee;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 900;
-  font-size: 19px;
+  background: transparent;
+  border: none;
+  overflow: hidden;
 }
 
 .ig-sidebar-logo-text,
@@ -1239,21 +1236,12 @@ button {
 }
 
 .ef-quick-panel {
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(14, 116, 144, 0.10) 0%, rgba(12, 18, 27, 0.85) 60%);
-  border-color: rgba(34, 211, 238, 0.14) !important;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Linha de acento teal no topo */
-.ef-quick-panel::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #22d3ee 0%, rgba(99, 102, 241, 0.6) 60%, transparent 100%);
-  border-radius: 999px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 4px !important;
 }
 
 .ef-feed-post {

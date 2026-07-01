@@ -23,7 +23,9 @@ import { displayNameOf } from "../api/client";
 function Logo() {
   return (
     <Link to="/" viewTransition className="ig-sidebar-logo" aria-label="EverestFrags">
-      <span className="ig-sidebar-logo-mark">EF</span>
+      <span className="ig-sidebar-logo-mark">
+        <img src="/favicon.png" alt="EverestFrags" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      </span>
       <span className="ig-sidebar-logo-text">
         <strong>EVEREST</strong><b>FRAGS</b>
       </span>
