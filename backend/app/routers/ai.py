@@ -1,9 +1,9 @@
 """
 Router — endpoints de IA (Groq)
 
-GET /api/players/{id}/coach      — análise individual do jogador
-GET /api/matches/{id}/narrative  — narrativa da partida
-POST /api/sort/prediction        — forma recente dos jogadores selecionados
+GET /api/players/{id}/coach      — análise individual do jogador (inclui W/L)
+GET /api/matches/{id}/narrative  — narrativa da partida (inclui resultado por time)
+POST /api/sort/prediction        — forma recente dos jogadores selecionados (inclui W/L streak)
 POST /api/ai/digest              — digest semanal (admin only)
 
 Todos degradam graciosamente se GROQ_API_KEY não estiver configurada:
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.match import Match, PlayerMatchStats
+from app.models.match import Match, PlayerMatchStats, PlayerWins
 from app.models.player import Player
 from app.services import ranking_service
 from app.services.match_service import get_match_by_id
@@ -44,7 +44,7 @@ def coach_player(
     db: Session = Depends(get_db),
     current: Player = Depends(get_current_player),
 ):
-    """Análise IA do jogador: ponto forte, fraqueza e sugestão prática."""
+    """Análise IA do jogador: ponto forte, fraqueza, sugestão prática e contexto W/L."""
     player = db.query(Player).filter(Player.id == player_id, Player.is_active == True).first()
     if not player:
         raise HTTPException(404, "Jogador não encontrado")
@@ -54,7 +54,7 @@ def coach_player(
         raise HTTPException(422, "Jogador não tem partidas suficientes para análise")
 
     group_avg = ranking_service.get_group_averages(db)
-    history = ranking_service.get_player_match_history(db, player_id)
+    history   = ranking_service.get_player_match_history(db, player_id)
 
     # Tendência ADR: média das últimas 3 vs anteriores
     adr_vals = [h["adr"] for h in history]
@@ -66,29 +66,36 @@ def coach_player(
     else:
         trend_adr = "dados insuficientes"
 
-    # Melhor/pior mapa por Rating médio
+    # Melhor/pior mapa por Rating médio (mínimo 2 partidas no mapa)
     map_ratings: dict[str, list[float]] = {}
     for h in history:
         if h["map_name"]:
             map_ratings.setdefault(h["map_name"], []).append(h["hltv_rating"])
-    map_avgs = {m: sum(v) / len(v) for m, v in map_ratings.items() if len(v) >= 2}
+    map_avgs  = {m: sum(v) / len(v) for m, v in map_ratings.items() if len(v) >= 2}
     best_map  = max(map_avgs, key=map_avgs.get) if map_avgs else ""
     worst_map = min(map_avgs, key=map_avgs.get) if map_avgs else ""
 
+    # Dados de vitórias/derrotas
+    pw = db.query(PlayerWins).filter(PlayerWins.player_id == player_id).first()
+    wins       = pw.wins       if pw else 0
+    losses     = pw.losses     if pw else 0
+    win_rate   = pw.win_rate   if pw else 0.0
+    win_streak = pw.win_streak if pw else 0
+
     stats = {
-        "adr": entry.adr,
+        "adr":           entry.adr,
         "opening_kills": entry.opening_kills / max(entry.total_matches, 1),
-        "flash_assists": entry.flash_assists / max(entry.total_matches, 1),
-        "kast_percent": entry.kast_percent,
-        "kd_ratio": entry.kd_ratio,
-        "hltv_rating": entry.hltv_rating,
+        "flash_assists": entry.flash_assists  / max(entry.total_matches, 1),
+        "kast_percent":  entry.kast_percent,
+        "kd_ratio":      entry.kd_ratio,
+        "hltv_rating":   entry.hltv_rating,
     }
     avg_dict = {
-        "adr": group_avg.adr,
+        "adr":           group_avg.adr,
         "opening_kills": group_avg.opening_kills,
         "flash_assists": group_avg.flash_assists,
-        "kast_percent": group_avg.kast_percent,
-        "kd_ratio": group_avg.kills / max(group_avg.deaths, 1) if group_avg.deaths else 1.0,
+        "kast_percent":  group_avg.kast_percent,
+        "kd_ratio":      group_avg.kills / max(group_avg.deaths, 1) if group_avg.deaths else 1.0,
     }
 
     text = ai_service.coach_player(
@@ -98,6 +105,10 @@ def coach_player(
         trend_adr=trend_adr,
         best_map=best_map,
         worst_map=worst_map,
+        wins=wins,
+        losses=losses,
+        win_rate=win_rate,
+        win_streak=win_streak,
     )
 
     if text is None:
@@ -114,27 +125,47 @@ def match_narrative(
     match_id: int,
     db: Session = Depends(get_db),
 ):
-    """Resumo narrativo estilo comentarista de uma partida."""
+    """Resumo narrativo estilo coach/comentarista de uma partida, com resultado por time."""
     match = get_match_by_id(db, match_id)
     if not match:
         raise HTTPException(404, "Partida não encontrada")
 
-    players_data = [
-        {
+    def stat_dict(s) -> dict:
+        return {
             "player_nickname": s.player.nickname,
-            "kills":   s.kills,
-            "deaths":  s.deaths,
-            "assists": s.assists,
-            "adr":     float(s.adr),
+            "kills":       s.kills,
+            "deaths":      s.deaths,
+            "assists":     s.assists,
+            "adr":         float(s.adr),
             "hltv_rating": float(s.hltv_rating),
+            "team":        s.team,
         }
-        for s in match.player_stats
-    ]
+
+    all_players = [stat_dict(s) for s in match.player_stats]
+
+    # Tenta agrupar por time (campo team = "A"/"B" da partida)
+    team_a = [p for p in all_players if p["team"] == "A"]
+    team_b = [p for p in all_players if p["team"] == "B"]
+    has_teams = bool(team_a and team_b)
+
+    # Determina vencedor se resultado foi registrado
+    winner: Optional[str] = None
+    if has_teams and match.winning_team and match.team_1_ids and match.team_2_ids:
+        winning_ids = set(match.team_1_ids if match.winning_team == 1 else match.team_2_ids)
+        # Descobre qual label (A/B) corresponde ao time vencedor
+        a_ids = {s.player_id for s in match.player_stats if s.team == "A"}
+        if a_ids & winning_ids:
+            winner = "A"
+        else:
+            winner = "B"
 
     text = ai_service.match_narrative(
         map_name=match.map_name or "mapa desconhecido",
         played_at=str(match.played_at),
-        players=players_data,
+        players=all_players,
+        team_a=team_a if has_teams else None,
+        team_b=team_b if has_teams else None,
+        winner=winner,
     )
 
     if text is None:
@@ -155,12 +186,18 @@ def sort_prediction(
     body: PredictionRequest,
     db: Session = Depends(get_db),
 ):
-    """Análise de forma recente dos jogadores selecionados para o sorteio."""
+    """Análise de forma recente + W/L streak dos jogadores selecionados para o sorteio."""
     if not body.player_ids:
         raise HTTPException(422, "Forneça ao menos 1 player_id")
 
-    ranking = ranking_service.get_ranking(db)
+    ranking    = ranking_service.get_ranking(db)
     rank_by_id = {e.player_id: e for e in ranking}
+
+    # Carrega W/L de todos de uma vez
+    pw_rows = {
+        pw.player_id: pw
+        for pw in db.query(PlayerWins).filter(PlayerWins.player_id.in_(body.player_ids)).all()
+    }
 
     players_form = []
     for pid in body.player_ids:
@@ -168,14 +205,19 @@ def sort_prediction(
         if not entry:
             continue
         history = ranking_service.get_player_match_history(db, pid)
-        recent = history[-3:] if len(history) >= 3 else history
+        recent  = history[-3:] if len(history) >= 3 else history
         avg_rating = sum(h["hltv_rating"] for h in recent) / len(recent) if recent else 0
-        avg_adr    = sum(h["adr"] for h in recent) / len(recent) if recent else 0
+        avg_adr    = sum(h["adr"]         for h in recent) / len(recent) if recent else 0
+
+        pw = pw_rows.get(pid)
         players_form.append({
             "nickname":   entry.player_nickname,
             "avg_rating": round(avg_rating, 2),
             "avg_adr":    round(avg_adr, 1),
             "n_matches":  len(recent),
+            "wins":       pw.wins       if pw else 0,
+            "losses":     pw.losses     if pw else 0,
+            "win_streak": pw.win_streak if pw else 0,
         })
 
     if not players_form:
@@ -203,7 +245,7 @@ def weekly_digest(
         for e in ranking[:5]
     ]
 
-    since = date.today() - timedelta(days=7)
+    since     = date.today() - timedelta(days=7)
     week_rows = db.query(Match).filter(Match.played_at >= since).order_by(Match.played_at.desc()).all()
     week_matches = [{"map_name": m.map_name, "played_at": str(m.played_at)} for m in week_rows]
 
@@ -220,10 +262,10 @@ def weekly_digest(
     if best_stat:
         stat, match_, pl = best_stat
         best_perf = {
-            "nickname": pl.nickname,
+            "nickname":    pl.nickname,
             "hltv_rating": float(stat.hltv_rating),
-            "adr": float(stat.adr),
-            "map_name": match_.map_name,
+            "adr":         float(stat.adr),
+            "map_name":    match_.map_name,
         }
 
     text = ai_service.weekly_digest(top5, week_matches, best_perf)
