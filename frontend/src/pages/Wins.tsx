@@ -33,28 +33,32 @@ export function Wins() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const [syncError, setSyncError] = useState(false);
 
-  function loadData() {
+  function loadData(admin = isAdmin) {
     setLoading(true);
     const p1 = winsApi.ranking().then(setEntries).catch(console.error);
-    const p2 = isAdmin
-      ? winsApi.unregistered().then(setUnregistered).catch(console.error)
+    const p2 = admin
+      ? winsApi.unregistered().then(setUnregistered).catch(() => setUnregistered([]))
       : Promise.resolve();
     Promise.all([p1, p2]).finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadData(); }, [isAdmin]);
+  useEffect(() => { loadData(isAdmin); }, [isAdmin]);
 
   async function handleSync() {
     if (!confirm("Reprocessar todos os resultados registrados do zero? O placar de vitórias será recalculado a partir das partidas com resultado salvo.")) return;
     setSyncing(true);
     setSyncMsg("");
+    setSyncError(false);
     try {
       const res = await winsApi.sync();
       setSyncMsg(res.message);
-      loadData();
+      setSyncError(false);
+      loadData(true);
     } catch (e: any) {
       setSyncMsg(e.message ?? "Erro ao sincronizar");
+      setSyncError(true);
     } finally {
       setSyncing(false);
     }
@@ -89,8 +93,8 @@ export function Wins() {
           </div>
 
           {syncMsg && (
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#22d3ee", background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", padding: "8px 14px", marginBottom: 16 }}>
-              ✓ {syncMsg}
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: syncError ? "#f87171" : "#22d3ee", background: syncError ? "rgba(248,113,113,0.06)" : "rgba(34,211,238,0.06)", border: `1px solid ${syncError ? "rgba(248,113,113,0.2)" : "rgba(34,211,238,0.15)"}`, padding: "8px 14px", marginBottom: 16 }}>
+              {syncError ? "// erro: " : "✓ "}{syncMsg}
             </div>
           )}
 
