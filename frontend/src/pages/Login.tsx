@@ -18,9 +18,14 @@ export function Login() {
   const [errorMsg, setErrorMsg] = useState("// credenciais inválidas");
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
-  const { login } = useAuth();
+  const { login, player, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Redireciona quem já está logado
+  useEffect(() => {
+    if (!isLoading && player) navigate("/", { replace: true });
+  }, [player, isLoading, navigate]);
 
   useEffect(() => {
     if (searchParams.get("error") === "steam_auth_failed") {

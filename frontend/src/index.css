@@ -166,7 +166,8 @@ button {
   display: flex;
   flex-direction: column;
   transition: width 0.22s ease, box-shadow 0.22s ease;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .ig-sidebar:hover {
@@ -240,7 +241,7 @@ button {
 .ig-sidebar-item,
 .ig-login-button,
 .ig-logout-button {
-  min-height: 50px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: #7b8798;
@@ -1364,6 +1365,8 @@ body .ig-sidebar {
   inset: 0 auto 0 0 !important;
   width: var(--ef-sidebar-closed) !important;
   z-index: 100 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 body .ig-sidebar:hover {
