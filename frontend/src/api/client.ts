@@ -511,10 +511,17 @@ export interface PlayerMatchHistory {
   kast_percent: number;
 }
 
+export interface DemoJobStatus {
+  job_id: string;
+  status: "processing" | "done" | "error";
+  detail?: string;
+}
+
 export const demoApi = {
   // Upload multipart — não usa request() porque o Content-Type (boundary)
   // precisa ser definido automaticamente pelo browser, não como JSON.
-  parse: async (file: File): Promise<DemoParseResult> => {
+  // Retorna {job_id, status:"processing"} imediatamente; o parse roda em background.
+  upload: async (file: File): Promise<DemoJobStatus> => {
     const token = getToken();
     const fd = new FormData();
     fd.append("file", file);
@@ -534,6 +541,15 @@ export const demoApi = {
       throw new Error(formatErrorDetail(error.detail));
     }
     return res.json();
+  },
+
+  // Polling — chama até status != "processing"
+  status: (jobId: string): Promise<DemoJobStatus & Partial<DemoParseResult>> =>
+    request(`/api/demo/status/${jobId}`),
+
+  // Mantido para compatibilidade — não deve ser mais chamado diretamente
+  parse: async (_file: File): Promise<DemoParseResult> => {
+    throw new Error("Use demoApi.upload() + demoApi.status() para parse assíncrono");
   },
 };
 

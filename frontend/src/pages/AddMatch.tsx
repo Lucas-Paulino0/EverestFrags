@@ -111,11 +111,15 @@ export function AddMatch() {
   const [dragging, setDragging] = useState(false);
   const [demoFile, setDemoFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [parseStep, setParseStep] = useState<"uploading" | "parsing" | "">("");
+  const [parseElapsed, setParseElapsed] = useState(0);
   const [demoError, setDemoError] = useState("");
   const [demoCreated, setDemoCreated] = useState<DemoCreatedPlayer[]>([]);
   const [demoUnmatched, setDemoUnmatched] = useState<string[]>([]);
   const [demoInactive, setDemoInactive] = useState<DemoCreatedPlayer[]>([]);
   const [demoMatchups, setDemoMatchups] = useState<DemoMatchup[]>([]);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     playersApi.list().then(ps => {
@@ -143,29 +147,77 @@ export function AddMatch() {
     if (f) handleDemoFile(f);
   }
 
-  async function uploadDemo() {
-    if (!demoFile) return;
-    setParsing(true);
-    setDemoError("");
-    try {
-      const result = await demoApi.parse(demoFile);
+  function _stopTimers() {
+    if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null; }
+    if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+  }
 
-      // Refaz a lista de players — o parse pode ter criado contas novas via steam_id
-      const ps = await playersApi.list();
+  function _applyResult(result: any) {
+    playersApi.list().then(ps => {
       setPlayers(ps);
       setRows(buildRows(ps, result.players));
+    });
+    if (result.map_name) setMapName(result.map_name);
+    setDemoCreated(result.created_players ?? []);
+    setDemoUnmatched((result.players ?? []).filter((p: any) => p.player_id == null).map((p: any) => p.nickname));
+    setDemoInactive(result.inactive_players ?? []);
+    setDemoMatchups(result.matchups ?? []);
+    setDemoFile(null);
+    setParsing(false);
+    setParseStep("");
+    setParseElapsed(0);
+  }
 
-      if (result.map_name) setMapName(result.map_name);
-      setDemoCreated(result.created_players);
-      setDemoUnmatched(result.players.filter(p => p.player_id == null).map(p => p.nickname));
-      setDemoInactive(result.inactive_players);
-      setDemoMatchups(result.matchups);
-      setDemoFile(null);
+  async function uploadDemo() {
+    if (!demoFile) return;
+    _stopTimers();
+    setParsing(true);
+    setParseStep("uploading");
+    setParseElapsed(0);
+    setDemoError("");
+
+    let jobId: string;
+    try {
+      const job = await demoApi.upload(demoFile);
+      jobId = job.job_id;
     } catch (e: any) {
-      setDemoError(e.message ?? "Erro ao processar demo");
-    } finally {
+      setDemoError(e.message ?? "Erro ao enviar demo");
       setParsing(false);
+      setParseStep("");
+      return;
     }
+
+    // Inicia contador de tempo decorrido
+    const startMs = Date.now();
+    elapsedTimerRef.current = setInterval(() => {
+      setParseElapsed(Math.floor((Date.now() - startMs) / 1000));
+    }, 1000);
+
+    setParseStep("parsing");
+
+    // Polling a cada 2s
+    function poll() {
+      demoApi.status(jobId).then(res => {
+        if (res.status === "processing") {
+          pollTimerRef.current = setTimeout(poll, 2000);
+          return;
+        }
+        _stopTimers();
+        if (res.status === "error") {
+          setDemoError(res.detail ?? "Erro ao processar demo");
+          setParsing(false);
+          setParseStep("");
+          return;
+        }
+        _applyResult(res);
+      }).catch(e => {
+        _stopTimers();
+        setDemoError(e.message ?? "Erro ao verificar status");
+        setParsing(false);
+        setParseStep("");
+      });
+    }
+    poll();
   }
 
   function toggleRow(idx: number) {
@@ -258,14 +310,21 @@ export function AddMatch() {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: demoFile ? "#22d3ee" : "#5a5a5a" }}>
             {demoFile ? `${demoFile.name} · ${demoSz}MB` : "// arraste um .dem do CS2 aqui (ou clique) para extrair e preencher automaticamente · limite 750MB"}
           </span>
-          {demoFile && (
+          {demoFile && !parsing && (
             <button
               onClick={e => { e.stopPropagation(); uploadDemo(); }}
-              disabled={parsing}
-              style={{ background: "#0e7490", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "1.5px", padding: "9px 20px", cursor: parsing ? "wait" : "pointer" }}
+              style={{ background: "#0e7490", border: "none", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: "1.5px", padding: "9px 20px", cursor: "pointer" }}
             >
-              {parsing ? "PROCESSANDO..." : "EXTRAIR DO DEMO"}
+              EXTRAIR DO DEMO
             </button>
+          )}
+          {parsing && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="ef-spin" style={{ width: 16, height: 16, border: "2px solid #1b2530", borderTopColor: "#0e7490" }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#0e7490" }}>
+                {parseStep === "uploading" ? "ENVIANDO..." : `PARSEANDO... ${parseElapsed}s`}
+              </span>
+            </div>
           )}
         </div>
 
