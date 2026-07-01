@@ -97,6 +97,7 @@ export function Profile() {
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachExpanded, setCoachExpanded] = useState(false);
   const [coachUnavailable, setCoachUnavailable] = useState(false);
+  const [coachNoMatches, setCoachNoMatches] = useState(false);
 
   // Campos de troca de senha
   const [currentPwd, setCurrentPwd] = useState("");
@@ -183,8 +184,12 @@ export function Profile() {
       const res = await aiApi.coach(player.id);
       setCoachUnavailable(res.unavailable);
       setCoachText(res.text ?? null);
-    } catch {
-      setCoachUnavailable(true);
+    } catch (e: any) {
+      if (e.message?.includes("partidas suficientes")) {
+        setCoachNoMatches(true);
+      } else {
+        setCoachUnavailable(true);
+      }
     } finally {
       setCoachLoading(false);
     }
@@ -371,8 +376,7 @@ export function Profile() {
         )}
 
         {/* Coach IA — análise individual */}
-        {entry && (
-          <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", marginBottom: 24, position: "relative" }}>
+        <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", marginBottom: 24, position: "relative" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,#6366f1,transparent)" }} />
             <button
               onClick={handleCoach}
@@ -405,6 +409,10 @@ export function Profile() {
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#f87171" }}>
                     // IA indisponível — configure GROQ_API_KEY no backend
                   </div>
+                ) : coachNoMatches ? (
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#566476" }}>
+                    // sem partidas registradas — jogue um mix para desbloquear a análise
+                  </div>
                 ) : (
                   <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: "#c8d8e8", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
                     {coachText}
@@ -413,7 +421,6 @@ export function Profile() {
               </div>
             )}
           </div>
-        )}
 
         {/* Apelido — nome de exibição editável, separado do nickname sincronizado com a Steam */}
         <div style={{ border: "1px solid #1e2a36", background: "linear-gradient(180deg,#0f161d,#0a0e13)", padding: "24px 28px", marginBottom: 24, position: "relative" }}>
