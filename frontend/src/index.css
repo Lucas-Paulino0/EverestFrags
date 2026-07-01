@@ -1297,37 +1297,132 @@ button {
   border-radius: 999px;
 }
 
-.ef-right-column .ig-panel {
-  border-radius: 24px;
+/* ==========================================================================
+   Right column — painel único unificado
+   ========================================================================== */
+
+/* O aside vira um card único arredondado */
+.ef-right-column {
+  background: #0c121b !important;
+  border: 1px solid rgba(148, 163, 184, 0.12) !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
 }
 
+/* Cada section dentro vira uma seção sem borda/fundo próprio */
+.ef-right-column .ig-panel {
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08) !important;
+  padding: 16px !important;
+}
+
+.ef-right-column .ig-panel:last-child {
+  border-bottom: none !important;
+}
+
+/* Títulos de seção menores dentro do widget */
+.ef-right-column .ig-panel-title-row h2,
+.ef-right-column .ig-panel-header span {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px !important;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #5d6d80 !important;
+  font-weight: 700 !important;
+}
+
+.ef-right-column .ig-panel-title-row {
+  margin-bottom: 10px !important;
+}
+
+.ef-right-column .ig-panel-header {
+  margin-bottom: 10px !important;
+}
+
+/* Mini ranking — linhas limpas sem card individual */
+.ef-right-column .ig-mini-ranking {
+  gap: 2px;
+}
+
+.ef-right-column .ig-mini-ranking button {
+  background: transparent !important;
+  border-radius: 12px !important;
+  padding: 7px 8px !important;
+  grid-template-columns: 26px 34px minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+  transition: background 0.14s ease !important;
+}
+
+.ef-right-column .ig-mini-ranking button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.ef-right-column .ig-mini-ranking button > span {
+  font-size: 11px !important;
+  color: #3a4d60 !important;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ef-right-column .ig-mini-ranking strong {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.ef-right-column .ig-mini-ranking b {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+/* Destaques — chips mais compactos */
+.ef-right-column .ig-highlight-list {
+  gap: 6px !important;
+}
+
+.ef-right-column .ig-highlight-list div {
+  border-radius: 12px !important;
+  padding: 9px 11px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(148, 163, 184, 0.07) !important;
+}
+
+/* Acesso rápido */
 .ef-shortcuts-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .ef-shortcuts-panel h2 {
-  color: #f8fafc;
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 24px;
-  margin-bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #5d6d80;
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
 .ef-shortcuts-panel a {
-  border: 1px solid rgba(148, 163, 184, 0.10);
-  background: rgba(255, 255, 255, 0.035);
-  border-radius: 16px;
-  padding: 10px 12px;
-  color: #cbd5e1;
-  font-weight: 900;
-  transition: 0.16s ease;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 12px;
+  padding: 9px 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  transition: 0.14s ease;
 }
 
 .ef-shortcuts-panel a:hover {
   color: #f8fafc;
   border-color: rgba(34, 211, 238, 0.24);
-  background: rgba(34, 211, 238, 0.08);
+  background: rgba(34, 211, 238, 0.07);
 }
 
 @media (max-width: 1080px) {
