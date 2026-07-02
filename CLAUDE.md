@@ -742,6 +742,10 @@ em github.com para evitar confusão.
 - [x] ~~Bug 30 — Demos gzip do CS2~~ → **resolvido em 2026-06-30** — magic bytes corrigido `HL2DEMO\x00` → `PBDEMS2\x00`; `_decompress_if_needed()` em `routers/demo.py` detecta `\x1f\x8b` e descomprime com `gzip.decompress()` antes de passar pro parser. Verificado nos 3 demos do grupo.
 - [x] ~~Segurança — server header vaza versão~~ → **resolvido** — middleware `security_headers` em `main.py` remove `server` header + adiciona X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS (prod only)
 - [x] ~~Segurança — audit logs ausentes~~ → **resolvido** — `auth.py` loga `LOGIN_OK`/`LOGIN_FAIL`/`LOGOUT`/`SENHA_ALTERADA` com `player_id`, `nickname`, `ip` via `logging`
+- [x] ~~Segurança — pentest Alta: role/is_active/created_at expostos publicamente~~ → **resolvido em 2026-07-01** — `PlayerResponsePublic` sem esses campos; `GET /api/players` e `GET /api/players/{id}` retornam schema reduzido para não-admins via `get_optional_current_player`
+- [x] ~~Segurança — pentest Média: rate limiting só por IP~~ → **resolvido em 2026-07-01** — bloqueio por nickname em `auth.py`: 10 falhas em 15 min → 5 min bloqueado (complementa o slowapi por IP)
+- [x] ~~Segurança — CSP header ausente~~ → **resolvido em 2026-07-01** — `Content-Security-Policy: default-src 'none'` adicionado ao middleware `security_headers`
+- [x] ~~Segurança — CORS allow_methods/allow_headers wildcard~~ → **resolvido em 2026-07-01** — trocado de `["*"]` para listas explícitas: métodos (GET/POST/PATCH/DELETE/OPTIONS) e headers (Authorization/Content-Type/Accept)
 - [x] ~~Export de dados para planilha~~ → **implementado** — `GET /api/export` → `StreamingResponse` com arquivo `.xlsx` (4 abas: Ranking, Stats Completas, Histórico, Head-to-Head); `EXPORTAR` button na página `/ranking`; usa `openpyxl`, paleta EverestFrags
 - [x] ~~Sistema de vitórias~~ → **implementado** — tabela `player_wins` (wins/losses/streak/max_streak/points); `POST /api/matches/{id}/result` (admin) registra resultado; `GET /api/wins/ranking` (público); `GET /api/players/{id}/wins`; página `/wins` com tabela de classificação; botão "REGISTRAR RESULTADO" em `/matches/:id`; link "Vitórias" no Navbar
 - [x] ~~IA — Coach individual~~ → **implementado** — `GET /api/players/{id}/coach`; service `ai_service.py` com Groq (Llama 3.1 70B); card colapsável "COACH IA" no `/profile`; degrada graciosamente se `GROQ_API_KEY` ausente
@@ -1020,3 +1024,39 @@ dos uploads com erro 400 antes mesmo de chegar no parser. **Fix (duas partes):**
    e descomprime com `gzip.decompress()` antes de passar pro parser; demos PBDEMS2 direto
    passam sem alteração. Verificado contra os 3 demos do grupo: anubis (gzip 132MB→210MB
    descomprimido), NUKE (PBDEMS2 direto 271MB) e TRAIN (gzip 173MB→280MB) — todos OK.
+
+### Bug 31 — `_decompress_if_needed()` causava OOM por manter compressed+decompressed na memória ao mesmo tempo
+O fix do Bug 30 usava `gzip.decompress(content)` — método síncrono que mantém o buffer
+comprimido (ex: 173 MB) e o descomprimido (ex: 280 MB) na memória simultaneamente, totalizando
+453 MB de pico só de buffers. Somando o baseline do app (~170 MB), ultrapassa o limite de 512 MB
+do Render free tier → crash "Ran out of memory". Agravante: a função existia no router de parse
+mas era chamada dentro do `_run_parse()` (background task), que já havia carregado o arquivo
+inteiro em memória para inspecionar os magic bytes. **Fix:** descompressão migrada para streaming
+via `gzip.open()` + `shutil.copyfileobj()` em chunks de 8 MB — pico de ~10 MB durante a
+descompressão. A função `_decompress_if_needed()` foi removida (dead code). **Causa
+secundária:** `_run_parse()` lia o arquivo inteiro em RAM antes de checar os magic bytes; corrigido
+para ler apenas 2 bytes antes de decidir se há gzip.
+
+### Bug 32 — ThreadPoolExecutor com 5 workers causava OOM no Render free tier
+Tentativa de acelerar o parse de demo rodando os 5 `parse_event()` em paralelo usando
+`ThreadPoolExecutor(max_workers=5)`. Cada thread criava um `DemoParser` independente → 5
+instâncias simultâneas × ~70 MB cada = ~350 MB extras sobre o baseline de ~170 MB → total
+>512 MB → crash de OOM. O paralelismo também não dava speedup real em 0.1 vCPU compartilhado
+(CPU-bound: as 5 threads competem pelo mesmo recurso, mesmo tempo de wall-clock com mais
+memória). **Fix:** revertido para parse sequencial com uma única instância `DemoParser`, 5
+chamadas `parse_event()` em série. **Limitação que fica:** ~300 s por demo de 270 MB no free
+tier. Para <60 s, upgrade para Render Starter ($7/mês, 0.5 vCPU).
+
+### Bug 33 — `del parser` prematuro causaria `NameError` em todas as chamadas `parse_event()`
+Ao refatorar o parse para ThreadPoolExecutor (Bug 32), foi adicionado `del parser` após
+`parse_header()` com comentário "libera — parse_event usa instâncias próprias por thread".
+Ao reverter para sequencial, o `del parser` ficou no código: as 5 chamadas `parse_event()`
+logo abaixo referenciam `parser` que já não existe → `NameError` ou `UnboundLocalError` em
+todo upload de demo. **Fix:** linha `del parser` removida.
+
+### Bug 34 — `winning_team` sempre `None` na listagem de partidas
+O router `GET /api/matches` construía `MatchResponse(...)` manualmente sem passar o campo
+`winning_team` — que existe na coluna `matches.winning_team` e no schema. O campo defaultava
+para `None`, fazendo o badge "RESULTADO ✓" em `Matches.tsx` nunca aparecer mesmo em partidas
+com resultado registrado. **Fix:** `winning_team=m.winning_team` adicionado ao construtor
+`MatchResponse` na listagem.
