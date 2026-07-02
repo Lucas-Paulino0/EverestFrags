@@ -39,6 +39,7 @@ def list_matches(
                 notes=m.notes,
                 player_count=len(m.player_stats) if m.player_stats else 0,
                 created_at=m.created_at,
+                winning_team=m.winning_team,
             )
         )
     return PaginatedMatchResponse(total=total, page=page, limit=limit, items=match_responses)

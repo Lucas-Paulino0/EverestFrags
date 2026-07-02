@@ -39,13 +39,6 @@ _PBDEMS2_MAGIC = b"PBDEMS2\x00"
 _GZIP_MAGIC    = b"\x1f\x8b"
 
 
-def _decompress_if_needed(content: bytes) -> bytes:
-    if len(content) >= 2 and content[:2] == _GZIP_MAGIC:
-        import gzip
-        return gzip.decompress(content)
-    return content
-
-
 def _resolve_players(result: dict, db: Session) -> dict:
     """Casa cada player do demo com sua conta via steam_id (cria se necessário).
     Mutates result in-place e devolve o mesmo dict."""
