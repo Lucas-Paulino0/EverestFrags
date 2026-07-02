@@ -54,42 +54,51 @@ def parse_demo(dem_path: str) -> dict[str, Any]:
         map_name = (header.get("map_name") or "").strip() or None
     except Exception:
         errors.append("Não foi possível ler o mapa do header.")
-    del parser  # libera — parse_event usa instâncias próprias por thread
 
-    # ── 3. Parseia eventos em paralelo ───────────────────────────────────────
-    # Cada parse_event() escaneia o demo inteiro — rodar em paralelo reduz o
-    # tempo de wall-clock de N×scan para ~1×scan (demoparser2 libera o GIL).
-    # Cada thread usa seu próprio DemoParser para garantir thread-safety.
-    # round_mvp não existe no formato de demo CS2 (Bug 27) — removido.
-    from concurrent.futures import ThreadPoolExecutor
-
-    _EVENTS = [
-        ("kills",    "player_death",   {"player": ["team_num", "steamid"], "other": ["total_rounds_played"]}),
-        ("hurt",     "player_hurt",    {"player": ["team_num", "steamid"], "other": ["total_rounds_played", "health", "dmg_health"]}),
-        ("rounds",   "round_end",      {"other": ["total_rounds_played"]}),
-        ("flash",    "player_blind",   {"player": ["team_num", "steamid"], "other": ["attacker_steamid", "attacker_name"]}),
-        ("purchase", "item_purchase",  {"other": ["total_rounds_played"]}),
-    ]
-
-    def _fetch(event: str, kw: dict):
-        return DemoParser(dem_path).parse_event(event, **kw)
-
+    # ── 3. Parseia eventos necessários (sequencial — free tier tem 512MB RAM) ─
+    # Nota: parse_event() reusa o mesmo DemoParser; cada chamada escaneia o
+    # arquivo inteiro. Em Render free tier (0.1 vCPU, 512MB) leva ~300s para
+    # demos de 270MB. Paralelismo foi testado mas causava OOM (5× DemoParser
+    # simultâneos excede 512MB). Para parse < 60s: upgrade para Starter plan.
+    # round_mvp não existe no formato CS2 (Bug 27) — não é chamado.
     kills_df = hurt_df = rounds_df = flash_df = purchase_df = mvp_df = None
-    with ThreadPoolExecutor(max_workers=len(_EVENTS)) as pool:
-        _fmap = {pool.submit(_fetch, ev, kw): name for name, ev, kw in _EVENTS}
-        for fut in _fmap:
-            name = _fmap[fut]
-            try:
-                df = fut.result()
-                if   name == "kills":    kills_df    = df
-                elif name == "hurt":     hurt_df     = df
-                elif name == "rounds":   rounds_df   = df
-                elif name == "flash":    flash_df    = df
-                elif name == "purchase": purchase_df = df
-            except Exception as exc:
-                if name == "kills":
-                    raise RuntimeError(f"Falha ao ler kills do demo: {exc}")
-                errors.append(f"Eventos de {name} indisponíveis: {exc}")
+
+    try:
+        kills_df = parser.parse_event(
+            "player_death",
+            player=["team_num", "steamid"],
+            other=["total_rounds_played"],
+        )
+    except Exception as e:
+        raise RuntimeError(f"Falha ao ler kills do demo: {e}")
+
+    try:
+        hurt_df = parser.parse_event(
+            "player_hurt",
+            player=["team_num", "steamid"],
+            other=["total_rounds_played", "health", "dmg_health"],
+        )
+    except Exception as e:
+        errors.append(f"Eventos de dano indisponíveis: {e}")
+
+    try:
+        rounds_df = parser.parse_event("round_end", other=["total_rounds_played"])
+    except Exception as e:
+        errors.append(f"Eventos de round indisponíveis: {e}")
+
+    try:
+        flash_df = parser.parse_event(
+            "player_blind",
+            player=["team_num", "steamid"],
+            other=["attacker_steamid", "attacker_name"],
+        )
+    except Exception as e:
+        errors.append(f"Eventos de flash indisponíveis: {e}")
+
+    try:
+        purchase_df = parser.parse_event("item_purchase", other=["total_rounds_played"])
+    except Exception as e:
+        errors.append(f"Eventos de compra indisponíveis: {e}")
 
     # ─────────────────────────────────────────────────────────────────────────
     # A partir daqui: apenas dicts leves, sem DemoParser em memória

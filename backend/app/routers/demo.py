@@ -84,22 +84,35 @@ def _resolve_players(result: dict, db: Session) -> dict:
 def _run_parse(job_id: str, tmp_path: str) -> None:
     """Background task: descomprime se necessário, parseia, resolve players, salva resultado."""
     db = SessionLocal()
+    decompressed_path: str | None = None
     try:
-        # Descomprime in-place — evita ler bytes para memória + reescrever em segundo temp
+        # Verifica magic bytes lendo apenas 2 bytes — não carrega o arquivo inteiro
         with open(tmp_path, "rb") as fh:
-            raw = fh.read()
-        if len(raw) >= 2 and raw[:2] == _GZIP_MAGIC:
-            import gzip as _gzip
-            decompressed = _gzip.decompress(raw)
-            del raw
-            with open(tmp_path, "wb") as fh:
-                fh.write(decompressed)
-            del decompressed
-        else:
-            del raw
+            magic2 = fh.read(2)
+
+        parse_path = tmp_path
+        if magic2 == _GZIP_MAGIC:
+            # Descomprime em streaming (8 MB por vez) para evitar OOM no free tier.
+            # gzip.decompress() carregaria compressed+decompressed ao mesmo tempo
+            # (~173 MB + ~280 MB = 453 MB só de buffers), estourando o limite de 512 MB.
+            import gzip
+            import shutil
+            tmp_fd2, decompressed_path = tempfile.mkstemp(suffix=".dem")
+            try:
+                with gzip.open(tmp_path, "rb") as gz_in, os.fdopen(tmp_fd2, "wb") as out:
+                    shutil.copyfileobj(gz_in, out, length=8 * 1024 * 1024)
+            except Exception:
+                # tmp_fd2 já foi fechado pelo fdopen; só limpar o arquivo
+                try:
+                    os.unlink(decompressed_path)
+                except OSError:
+                    pass
+                decompressed_path = None
+                raise
+            parse_path = decompressed_path
 
         from app.services.demo_service import parse_demo as _parse
-        result = _parse(tmp_path)  # recebe caminho — sem temp extra
+        result = _parse(parse_path)
 
         _resolve_players(result, db)
 
@@ -124,10 +137,12 @@ def _run_parse(job_id: str, tmp_path: str) -> None:
             pass
     finally:
         db.close()
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        for path in (tmp_path, decompressed_path):
+            if path:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
 
 @router.post("/parse")
